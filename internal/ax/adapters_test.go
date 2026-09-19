@@ -3,6 +3,8 @@ package ax
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -184,6 +186,40 @@ func TestGrokProtocolBindsAndConfirmsNativeQueue(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("native queue acceptance was missed")
+	}
+}
+
+func TestGrokProxyPreservesClientExitCause(t *testing.T) {
+	for _, name := range []string{"quit", "malformed"} {
+		t.Run(name, func(t *testing.T) {
+			malformed := name == "malformed"
+			tui, client := net.Pipe()
+			upstream, server := net.Pipe()
+			defer tui.Close()
+			defer server.Close()
+			defer upstream.Close()
+			done := make(chan error, 1)
+			go func() { done <- proxyGrok(client, &grokConnection{conn: upstream}, nil, nil) }()
+			if malformed {
+				if err := grokWrite(tui, object{"type": "acp", "payload": "{"}); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				tui.Close()
+			}
+			select {
+			case err := <-done:
+				if malformed {
+					if err == nil || err.Error() != "invalid Grok ACP payload" {
+						t.Fatalf("lost protocol error: %v", err)
+					}
+				} else if !errors.Is(err, io.EOF) {
+					t.Fatalf("normal exit became a transport failure: %v", err)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("proxy did not stop after client exit")
+			}
+		})
 	}
 }
 

@@ -270,6 +270,13 @@ func proxyGrok(client net.Conn, g *grokConnection, mcp object, bind func(string,
 	for {
 		frame, err := grokRead(g.conn)
 		if err != nil {
+			// The client reader closes upstream to unblock this read. Preserve
+			// its exit cause instead of reporting that intentional close.
+			select {
+			case cause := <-done:
+				return cause
+			default:
+			}
 			return err
 		}
 		if frame["type"] == "acp" {
