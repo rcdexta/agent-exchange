@@ -1,6 +1,6 @@
 # Using Agent Exchange
 
-Install the native harnesses you want to use and sign in normally. Build AX from the repository root with `make install`. This installs `ax` into your user's `.local/bin` directory.
+Install the native harnesses you want to use and sign in normally. [Install the prebuilt AX binary](install.md) on macOS, Linux, or inside WSL 2. Building from source is optional.
 
 ## Launch and resume
 
@@ -57,6 +57,6 @@ State lives in a private `.ax` directory under your home directory. `AX_HOME` se
 - Codex uses its native app server on a private socket. AX owns that local backend connection.
 - Grok uses its native leader on a private socket. Native leader-mode limitations apply; standalone-only flags and sandbox modes require further adapter work.
 - OpenCode uses its full TUI plugin API. Its pure and mini modes do not load this adapter. An existing `OPENCODE_TUI_CONFIG` override must currently contain JSON.
-- Live verification targets macOS. The shared Unix implementation also builds and tests on Linux in CI. Windows and remote agent transport are outside this preview.
+- Live harness verification targets macOS. Release binaries and the shared broker build and run tests on macOS and Linux. Windows users run AX and their harnesses inside WSL 2. Native Windows and remote agent transport are outside this preview.
 
 No public release has been made. See the [verification record](verification.md) for tested harness versions and current evidence.

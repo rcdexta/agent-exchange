@@ -1,5 +1,9 @@
 # Adding a harness
 
+This is the current source contribution path. An adapter is compiled into AX; adding one requires a rebuild. Installable adapter packages and scaffold commands are planned, not implemented.
+
+The useful native capabilities are: configure AX's MCP tools for this launch, identify the conversation selected by the user, report its state and permissions, and wake that exact conversation with confirmed acceptance. MCP tool support alone does not supply the native wake integration.
+
 Add one entry to `harnesses` in `internal/ax/adapters.go`, plus a preparation function for the native harness. The broker does not need a new implementation or a host-specific message format.
 
 An adapter supplies the native tool-name prefix, session-ID validator, and a preparation function. That function receives the original native arguments and environment and returns the launch arguments, environment, cleanup function, or an actionable error. Add the command to CLI dispatch and doctor output.
@@ -21,3 +25,17 @@ OpenCode's embedded JavaScript plugin demonstrates that path. Keep its long-live
 The model-facing tools are `list_agents`, `send_message`, `reply`, `get_message`, `ack_message`, and `delivery_status`. Reuse `ax bridge`; it filters model-supplied arguments and prevents forged identity, permissions, receipts, and policy changes.
 
 Prove these behaviors before enabling an adapter: fresh launch and native resume, automatic readiness, unchanged prompts and settings, two-way delivery with another harness, native permission preservation, busy-session delivery, immutable identity, disconnect cleanup, and ambiguous handoff handling. Include a protocol-level test that rejects a false acceptance signal. Record the exact native version and live evidence in the verification document.
+
+## Contribution workflow
+
+1. Inspect the harness's native API and record which capabilities and versions it supports. Use the user's existing conversation and native argument syntax.
+2. Implement the preparation function and registry entry. OpenCode is the reference for a native plugin; Grok is the reference for a native server. Claude and Codex still have specialized launcher paths.
+3. Add CLI dispatch and doctor support, focused protocol tests, and an isolated live exchange with an existing supported harness.
+4. Run the checks below and update the support table and verification record with the evidence. Keep host limitations explicit.
+
+```sh
+go test -race ./...
+go vet ./...
+```
+
+Keep one messaging core. An adapter should not implement its own broker, mailbox, retry policy, or model-facing messaging tools.
