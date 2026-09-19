@@ -1,45 +1,10 @@
 # Install Agent Exchange
 
-AX installs from a prebuilt binary. Go, Make, Node, and a C compiler are not needed. Install and sign in to whichever coding harnesses you want to use separately.
+The canonical installation instructions are in [agents.md](../agents.md). That guide covers macOS, Linux, Windows through WSL 2, verification, updates, version selection, and removal.
 
-## macOS and Linux
+To let a coding agent install AX, ask it to read:
 
-Run this command in your terminal. It uses curl and public GitHub releases; no GitHub account or GitHub CLI is required:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/rcdexta/agent-exchange/main/install.sh | sh
-```
-
-The installer selects the latest release for your OS and CPU, verifies its SHA-256 checksum and version, and installs it in your user's `.local/bin` directory. If needed, it adds that directory to the configuration for your current shell. Open a new terminal afterward.
-
-```sh
-ax version
-ax doctor
-ax claude -name api
-```
-
-Supported binary targets are macOS 13 or later and Linux, each on Intel/AMD x86_64 and ARM64. Linux binaries include SQLite and use static linking, so there is no separate SQLite or libc package to install.
-
-## Windows through WSL
-
-For this release, use [WSL 2](https://learn.microsoft.com/windows/wsl/install). Open your Linux distribution's terminal and run the same installation command above. Install curl with your distribution's package manager if needed. AX and your coding harnesses must be installed and run inside that distribution.
-
-AX shares names and messages within that WSL distribution. Native Windows harnesses and other WSL distributions are separate environments; there is no native `ax.exe` in this release.
-
-## Update and remove
-
-Run the install command again to update. Failed downloads and checksum checks leave the existing binary unchanged. Existing sessions keep running; close and relaunch them when you want to use new adapter behavior. The installer does not delete conversations or AX mailbox state.
-
-Set `AX_VERSION=v0.5.4` in the installer's environment to select a specific release. Set `AX_INSTALL_DIR` to select another binary directory, or `AX_NO_MODIFY_PATH=1` to manage PATH yourself. Download the script first to inspect it or set these options:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/rcdexta/agent-exchange/main/install.sh -o /tmp/install-ax.sh
-AX_VERSION=v0.5.4 sh /tmp/install-ax.sh
-```
-
-You can also download an archive and `checksums.txt` directly from [GitHub Releases](https://github.com/rcdexta/agent-exchange/releases/latest).
-
-To uninstall, remove `.local/bin/ax` under your home directory and the PATH line added by the installer if it is no longer needed. Your `.ax` directory holds saved identities and mail and is preserved unless you explicitly remove it.
+https://raw.githubusercontent.com/rcdexta/agent-exchange/main/agents.md
 
 ## Building from source
 

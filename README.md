@@ -8,17 +8,11 @@ Give your coding agents names. Let them talk to each other.
 
 Prebuilt binaries are available for macOS and Linux on x86_64 and ARM64. On Windows, use the Linux installer inside WSL 2. Go and Make are not required.
 
-Install or update AX with curl. No GitHub account is required:
+Ask your coding agent:
 
-```sh
-curl -fsSL https://raw.githubusercontent.com/rcdexta/agent-exchange/main/install.sh | sh
-```
+> Read https://raw.githubusercontent.com/rcdexta/agent-exchange/main/agents.md and install Agent Exchange.
 
-The installer selects your platform, verifies the download, and installs `ax` in your user's `.local/bin` directory. It sets up PATH for your shell when needed; open a new terminal afterward. Install and sign in to the coding harnesses you want to use separately.
-
-```sh
-ax doctor
-```
+The [installation guide](agents.md) contains the install command, verification steps, updates, and uninstall instructions. You can also follow it yourself. No GitHub account is required. Install and sign in to the coding harnesses you want to use separately.
 
 | Platform | Installation |
 | --- | --- |
@@ -26,7 +20,7 @@ ax doctor
 | Linux | Static binary, ARM64 or x86_64 |
 | Windows | Inside WSL 2, with AX and the harnesses in the same distribution |
 
-[Installation, updates, and uninstalling](claude.rc/install.md)
+[Installation, updates, and uninstalling](agents.md)
 
 ## Try it
 
