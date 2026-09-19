@@ -25,7 +25,7 @@ main() {
   tag=${AX_VERSION:-$(gh api "repos/$repo/releases/latest" -q .tag_name)}
   case "$tag" in
     v[0-9]*) ;;
-    *) echo 'AX_VERSION must be a release tag such as v0.5.2.' >&2; exit 1 ;;
+    *) echo 'AX_VERSION must be a release tag such as v0.5.3.' >&2; exit 1 ;;
   esac
   asset="ax_${platform}_${arch}.tar.gz"
   stage=$(mktemp -d)

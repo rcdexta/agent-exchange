@@ -1,4 +1,4 @@
-# Agent Exchange 0.5.2
+# Agent Exchange 0.5.3
 
 Install AX from a prebuilt binary on macOS, Linux, and Windows through WSL 2. Go and Make are no longer installation prerequisites.
 

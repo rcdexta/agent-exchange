@@ -36,7 +36,7 @@ AX shares names and messages within that WSL distribution. Native Windows harnes
 
 Run the install command again to update. Failed downloads and checksum checks leave the existing binary unchanged. Existing sessions keep running; close and relaunch them when you want to use new adapter behavior. The installer does not delete conversations or AX mailbox state.
 
-Set `AX_VERSION=v0.5.2` in the installer's environment to select a specific release. Set `AX_INSTALL_DIR` to select another binary directory, or `AX_NO_MODIFY_PATH=1` to manage PATH yourself. For these options, download the script to a file and invoke it with the environment variables set.
+Set `AX_VERSION=v0.5.3` in the installer's environment to select a specific release. Set `AX_INSTALL_DIR` to select another binary directory, or `AX_NO_MODIFY_PATH=1` to manage PATH yourself. For these options, download the script to a file and invoke it with the environment variables set.
 
 To uninstall, remove `.local/bin/ax` under your home directory and the PATH line added by the installer if it is no longer needed. Your `.ax` directory holds saved identities and mail and is preserved unless you explicitly remove it.
 

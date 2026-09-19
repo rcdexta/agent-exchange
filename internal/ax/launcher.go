@@ -17,7 +17,7 @@ import (
 	"golang.org/x/term"
 )
 
-const Version = "0.5.2"
+const Version = "0.5.3"
 
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'" }
 
