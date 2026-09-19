@@ -1,6 +1,6 @@
 # Verification
 
-Private preview, September 19, 2026. Live host tests run on macOS arm64 in an isolated AX state directory.
+Preview verification, September 19, 2026. Live host tests run on macOS arm64 in an isolated AX state directory.
 
 | Harness | Version | Native integration |
 | --- | --- | --- |
@@ -39,6 +39,6 @@ The initial repository scope passed autoreview after fixing preservation of nest
 
 The same installer tests passed inside Ubuntu on Windows WSL 2, using the Linux x86_64 release binary. The tests exercise installation, repeat installation, shell PATH preservation, a real broker connection, failed downloads and checksums, custom install directories, and symlink targets. See the [release workflow results](https://github.com/rcdexta/agent-exchange/actions/runs/35471875199).
 
-The exact README command also downloaded and installed the published archive on macOS ARM64. The installed binary reported `0.5.3`, and doctor found all four native harnesses. Installer and release changes passed autoreview, including the Windows path and shell line-ending fixes found by live CI.
+The authenticated installation command documented for the private 0.5.3 preview also downloaded and installed the published archive on macOS ARM64. The installed binary reported `0.5.3`, and doctor found all four native harnesses. Installer and release changes passed autoreview, including the Windows path and shell line-ending fixes found by live CI.
 
 Live harness exchanges on Linux and WSL, native Windows, remote transport, every native subcommand, and all host policy configurations are outside the verified scope. Native acceptance is distinct from a model acknowledgment and from successful task completion.

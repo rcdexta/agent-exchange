@@ -3,7 +3,7 @@ set -eu
 
 main() {
   repo=rcdexta/agent-exchange
-  command -v gh >/dev/null 2>&1 || { echo 'Install GitHub CLI and run: gh auth login' >&2; exit 1; }
+  command -v curl >/dev/null 2>&1 || { echo 'Install curl, then run this installer again.' >&2; exit 1; }
   case "$(uname -s)" in
     Darwin) platform=darwin ;;
     Linux) platform=linux ;;
@@ -22,10 +22,18 @@ main() {
     echo 'A SHA-256 utility is required: sha256sum or shasum.' >&2
     exit 1
   fi
-  tag=${AX_VERSION:-$(gh api "repos/$repo/releases/latest" -q .tag_name)}
+  tag=${AX_VERSION:-}
+  if [ -z "$tag" ]; then
+    latest=$(curl -q -fsSL -o /dev/null -w '%{url_effective}' "https://github.com/$repo/releases/latest")
+    case "$latest" in
+      "https://github.com/$repo/releases/tag/"*) tag=${latest##*/} ;;
+      *) echo 'Could not determine the latest AX release.' >&2; exit 1 ;;
+    esac
+  fi
   case "$tag" in
+    *[!A-Za-z0-9._-]*) echo 'AX_VERSION contains invalid release tag characters.' >&2; exit 1 ;;
     v[0-9]*) ;;
-    *) echo 'AX_VERSION must be a release tag such as v0.5.3.' >&2; exit 1 ;;
+    *) echo 'AX_VERSION must be a release tag such as v0.5.4.' >&2; exit 1 ;;
   esac
   asset="ax_${platform}_${arch}.tar.gz"
   stage=$(mktemp -d)
@@ -33,7 +41,9 @@ main() {
   trap 'rm -rf "$stage"; if [ -n "$next" ]; then rm -f "$next"; fi' EXIT
   trap 'exit 1' HUP INT TERM
   echo "Downloading Agent Exchange $tag for $platform/$arch..."
-  gh release download "$tag" -R "$repo" -p "$asset" -p checksums.txt -D "$stage"
+  base="https://github.com/$repo/releases/download/$tag"
+  curl -q -fsSL "$base/$asset" -o "$stage/$asset"
+  curl -q -fsSL "$base/checksums.txt" -o "$stage/checksums.txt"
   expected=$(awk -v file="$asset" '$2 == file {print $1}' "$stage/checksums.txt")
   actual=$($checksum "$stage/$asset" | awk '{print $1}')
   if [ -z "$expected" ] || [ "$actual" != "$expected" ]; then

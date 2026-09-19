@@ -59,4 +59,4 @@ State lives in a private `.ax` directory under your home directory. `AX_HOME` se
 - OpenCode uses its full TUI plugin API. Its pure and mini modes do not load this adapter. An existing `OPENCODE_TUI_CONFIG` override must currently contain JSON.
 - Live harness verification targets macOS. Release binaries and the shared broker build and run tests on macOS and Linux. Windows users run AX and their harnesses inside WSL 2. Native Windows and remote agent transport are outside this preview.
 
-No public release has been made. See the [verification record](verification.md) for tested harness versions and current evidence.
+Public binaries are available from [GitHub Releases](https://github.com/rcdexta/agent-exchange/releases/latest). See the [verification record](verification.md) for tested harness versions and current evidence.

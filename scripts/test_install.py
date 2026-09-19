@@ -35,23 +35,26 @@ class InstallTest(unittest.TestCase):
             archive.add(ROOT / "LICENSE", arcname="LICENSE")
         checksum = hashlib.sha256((self.release / ASSET).read_bytes()).hexdigest()
         (self.release / "checksums.txt").write_text(f"{checksum}  {ASSET}\n")
-        gh = self.tools / "gh"
-        gh.write_text('''#!/usr/bin/env python3
+        curl = self.tools / "curl"
+        curl.write_text('''#!/usr/bin/env python3
 import os, pathlib, shutil, sys
 args = sys.argv[1:]
-if args[0] == "api":
-    print("v" + os.environ["AX_TEST_VERSION"])
-elif args[:2] == ["release", "download"]:
+base = "https://github.com/rcdexta/agent-exchange/releases"
+version = "v" + os.environ["AX_TEST_VERSION"]
+url = next(arg for arg in args if arg.startswith("https://"))
+if url == base + "/latest":
+    if os.environ.get("AX_VERSION"):
+        sys.exit("pinned installs must not query latest")
+    print(os.environ.get("AX_TEST_LATEST_URL", base + "/tag/" + version), end="")
+elif url.startswith(base + "/download/" + version + "/"):
     if os.environ.get("AX_TEST_DOWNLOAD_FAIL"):
         sys.exit("release unavailable")
-    dest = pathlib.Path(args[args.index("-D") + 1])
-    for i, value in enumerate(args):
-        if value == "-p":
-            shutil.copy(pathlib.Path(os.environ["AX_TEST_RELEASE"]) / args[i + 1], dest)
+    dest = pathlib.Path(args[args.index("-o") + 1])
+    shutil.copy(pathlib.Path(os.environ["AX_TEST_RELEASE"]) / url.rsplit("/", 1)[1], dest)
 else:
-    sys.exit("unexpected GitHub invocation")
+    sys.exit("unexpected release URL: " + url)
 ''')
-        gh.chmod(0o755)
+        curl.chmod(0o755)
         self.env = dict(os.environ, HOME=str(self.home), SHELL="/bin/zsh",
                         PATH=f"{self.tools}:{os.environ['PATH']}",
                         AX_TEST_VERSION=VERSION, AX_TEST_RELEASE=str(self.release))
@@ -107,6 +110,22 @@ else:
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue((self.root / "custom/ax").exists())
         self.assertFalse((self.home / ".zshrc").exists())
+
+    def test_pinned_release_skips_latest(self):
+        self.env["AX_VERSION"] = "v" + VERSION
+        result = self.install()
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_invalid_release_is_rejected(self):
+        for tag in ("latest", "v1/../../other", "v1?query"):
+            with self.subTest(tag=tag):
+                self.env["AX_VERSION"] = tag
+                self.assertNotEqual(self.install().returncode, 0)
+                self.assertFalse(self.target.exists())
+        self.env.pop("AX_VERSION")
+        self.env["AX_TEST_LATEST_URL"] = "https://github.com/login"
+        self.assertNotEqual(self.install().returncode, 0)
+        self.assertFalse(self.target.exists())
 
     def test_symlink_target_is_preserved(self):
         other = self.root / "other"
