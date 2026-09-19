@@ -33,4 +33,12 @@ The race-enabled Go suite and vet pass locally. Focused tests cover immutable ad
 
 The initial repository scope passed autoreview after fixing preservation of nested OpenCode TUI plugins and their relative paths.
 
-Live Linux harnesses, Windows, remote transport, every native subcommand, and all host policy configurations are outside the verified scope. Native acceptance is distinct from a model acknowledgment and from successful task completion.
+## Binary installation
+
+[AX 0.5.3](https://github.com/rcdexta/agent-exchange/releases/tag/v0.5.3) publishes macOS and Linux archives for x86_64 and ARM64. All four native builds passed the race suite, vet, and installation tests that launch the installed broker. Linux archives contain statically linked binaries.
+
+The same installer tests passed inside Ubuntu on Windows WSL 2, using the Linux x86_64 release binary. The tests exercise installation, repeat installation, shell PATH preservation, a real broker connection, failed downloads and checksums, custom install directories, and symlink targets. See the [release workflow results](https://github.com/rcdexta/agent-exchange/actions/runs/35471875199).
+
+The exact README command also downloaded and installed the published archive on macOS ARM64. The installed binary reported `0.5.3`, and doctor found all four native harnesses. Installer and release changes passed autoreview, including the Windows path and shell line-ending fixes found by live CI.
+
+Live harness exchanges on Linux and WSL, native Windows, remote transport, every native subcommand, and all host policy configurations are outside the verified scope. Native acceptance is distinct from a model acknowledgment and from successful task completion.
