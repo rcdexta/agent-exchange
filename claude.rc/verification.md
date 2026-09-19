@@ -41,4 +41,10 @@ The same installer tests passed inside Ubuntu on Windows WSL 2, using the Linux 
 
 The authenticated installation command documented for the private 0.5.3 preview also downloaded and installed the published archive on macOS ARM64. The installed binary reported `0.5.3`, and doctor found all four native harnesses. Installer and release changes passed autoreview, including the Windows path and shell line-ending fixes found by live CI.
 
+## Public installation
+
+The repository is public as of September 19, 2026. [AX 0.5.4](https://github.com/rcdexta/agent-exchange/releases/tag/v0.5.4) downloads with curl and requires no GitHub account or GitHub CLI. All four native builds and the WSL 2 installation checks passed in the [release workflow](https://github.com/rcdexta/agent-exchange/actions/runs/35472738163). The installer suite now also checks explicit version selection and rejects malformed tags and unexpected latest-release redirects. Autoreview reported no actionable findings.
+
+The exact public README command installed and reinstalled 0.5.4 on macOS ARM64 in a fresh home directory with no GitHub credentials. It preserved a single shell PATH entry, and the installed broker started and answered an agent-list request. The published installer matched both its release checksum and the reviewed source.
+
 Live harness exchanges on Linux and WSL, native Windows, remote transport, every native subcommand, and all host policy configurations are outside the verified scope. Native acceptance is distinct from a model acknowledgment and from successful task completion.
