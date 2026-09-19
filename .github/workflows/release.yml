@@ -88,7 +88,7 @@ jobs:
           wsl --import AXTest "$env:RUNNER_TEMP/ax-wsl" "$env:RUNNER_TEMP/$image" --version 2
           if ($LASTEXITCODE -ne 0) { throw 'WSL 2 import failed' }
           git archive -o source.tar HEAD
-          $source = (wsl -d AXTest -u root -- wslpath -a -u "$env:GITHUB_WORKSPACE").Trim()
+          $source = (wsl -d AXTest -u root --exec wslpath -a -u "$env:GITHUB_WORKSPACE").Trim()
           $script = @'
           set -eu
           uname -r
@@ -100,7 +100,7 @@ jobs:
           cd /root/ax-check
           python3 scripts/test_install.py
           '@
-          wsl -d AXTest -u root -- bash -c $script.Replace("`r", '') ax "$source"
+          wsl -d AXTest -u root --exec bash -c $script.Replace("`r", '') ax "$source"
           if ($LASTEXITCODE -ne 0) { throw 'WSL installer verification failed' }
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
