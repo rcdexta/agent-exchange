@@ -4,7 +4,7 @@ The canonical installation instructions are in [AGENTS.md](../AGENTS.md). That g
 
 To let a coding agent install AX, ask it to read:
 
-https://raw.githubusercontent.com/rcdexta/agent-exchange/main/AGENTS.md
+https://useax.dev/agents.md
 
 ## Building from source
 

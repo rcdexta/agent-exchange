@@ -4,9 +4,11 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
+    "test": "node --check build.mjs && node --check site.js && python3 test_site.py",
     "deploy": "npm run build && wrangler deploy"
   },
   "devDependencies": {
+    "markdown-it": "15.0.2",
     "wrangler": "^4.135.0"
   }
 }
