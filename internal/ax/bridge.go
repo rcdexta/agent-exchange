@@ -54,6 +54,7 @@ type bridge struct {
 	session             Session
 	file, dir, instance string
 	c                   *client
+	changed             chan struct{}
 	out                 io.Writer
 	outMu               sync.Mutex
 	ctx                 context.Context
@@ -68,26 +69,46 @@ func (b *bridge) emit(p packet) error {
 	p.JSONRPC = "2.0"
 	return json.NewEncoder(b.out).Encode(p)
 }
-func (b *bridge) call(method string, a any, out any) error {
-	if err := resourcePause(b.dir, time.Now()); err != nil {
-		return err
-	}
-	deadline := time.Now().Add(10 * time.Second)
+func (b *bridge) connection(ctx context.Context) (*client, error) {
 	for {
 		b.mu.Lock()
 		c := b.c
+		if b.changed == nil {
+			b.changed = make(chan struct{})
+		}
+		changed := b.changed
 		b.mu.Unlock()
 		if c != nil {
-			return c.call(method, a, out)
-		}
-		if time.Now().After(deadline) {
-			return errors.New("AX broker reconnecting; retry shortly")
+			select {
+			case <-c.done:
+				b.invalidate(c)
+				continue
+			default:
+				return c, nil
+			}
 		}
 		select {
-		case <-b.ctx.Done():
-			return b.ctx.Err()
-		case <-time.After(50 * time.Millisecond):
+		case <-ctx.Done():
+			return nil, &transportError{cause: ctx.Err()}
+		case <-changed:
 		}
+	}
+}
+
+func (b *bridge) changedLocked() {
+	if b.changed != nil {
+		close(b.changed)
+	}
+	b.changed = make(chan struct{})
+}
+
+func (b *bridge) invalidate(c *client) {
+	c.close()
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.c == c {
+		b.c = nil
+		b.changedLocked()
 	}
 }
 func (b *bridge) connectLoop() {
@@ -135,15 +156,18 @@ func (b *bridge) connectLoop() {
 			continue
 		}
 		b.mu.Lock()
-		if b.active {
+		active := b.active
+		b.mu.Unlock()
+		if active {
 			e = c.call("ax.ready", object{}, nil)
 		}
 		if e != nil {
-			b.mu.Unlock()
 			c.close()
 			continue
 		}
+		b.mu.Lock()
 		b.c = c
+		b.changedLocked()
 		b.mu.Unlock()
 		t := time.NewTicker(5 * time.Second)
 	connection:
@@ -164,12 +188,7 @@ func (b *bridge) connectLoop() {
 			}
 		}
 		t.Stop()
-		c.close()
-		b.mu.Lock()
-		if b.c == c {
-			b.c = nil
-		}
-		b.mu.Unlock()
+		b.invalidate(c)
 	}
 }
 func wakeText(host, id string) string {
@@ -219,15 +238,22 @@ func setupText(s Session) string {
 // A real tool call proves the host has finished loading this MCP server. A new
 // process must prove readiness again; a network reconnect preserves it.
 func (b *bridge) activate() error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.c == nil {
-		return errors.New("AX broker reconnecting")
+	ctx, cancel := context.WithTimeout(b.ctx, 10*time.Second)
+	defer cancel()
+	c, err := b.connection(ctx)
+	if err != nil {
+		return err
 	}
-	if e := b.c.call("ax.ready", object{}, nil); e != nil {
+	return b.activateClient(ctx, c)
+}
+
+func (b *bridge) activateClient(ctx context.Context, c *client) error {
+	if e := c.callContext(ctx, "ax.ready", object{}, nil); e != nil {
 		return e
 	}
+	b.mu.Lock()
 	b.active = true
+	b.mu.Unlock()
 	return nil
 }
 func (b *bridge) deliver(c *client, m Message) {
@@ -272,21 +298,29 @@ func (b *bridge) notify(s Session, text string, meta object) error {
 	cmd.Dir = s.Workspace
 	return cmd.Run()
 }
-func (b *bridge) bind(meta json.RawMessage) error {
+func (b *bridge) bind(ctx context.Context, c *client, meta json.RawMessage) error {
 	b.mu.Lock()
-	defer b.mu.Unlock()
+	presence, err := b.bindingLocked(meta)
+	b.mu.Unlock()
+	if err != nil || presence == nil {
+		return err
+	}
+	return c.callContext(ctx, "ax.presence", presence, nil)
+}
+
+func (b *bridge) bindingLocked(meta json.RawMessage) (object, error) {
 	// SessionStart can bind after MCP initialization. Always check the current
 	// binding before a tool call so another thread cannot overwrite it.
 	s, e := loadSession(b.file)
 	if e != nil {
-		return e
+		return nil, e
 	}
 	b.session = s
 	if s.Host != "codex" {
 		if !s.Started || !nativeID(s.Host, s.Native) {
-			return fmt.Errorf("%s session is still starting; retry shortly", s.Host)
+			return nil, fmt.Errorf("%s session is still starting; retry shortly", s.Host)
 		}
-		return nil
+		return nil, nil
 	}
 	var m struct {
 		Thread string `json:"threadId"`
@@ -296,25 +330,20 @@ func (b *bridge) bind(meta json.RawMessage) error {
 		} `json:"x-codex-turn-metadata"`
 	}
 	if json.Unmarshal(meta, &m) != nil || !validNative(m.Thread) {
-		return errors.New("Codex did not supply session metadata; AX needs Codex CLI 0.154 or newer")
+		return nil, errors.New("Codex did not supply session metadata; AX needs Codex CLI 0.154 or newer")
 	}
 	if m.Turn.Thread != "" && m.Turn.Thread != m.Thread {
-		return errors.New("inconsistent Codex thread metadata")
+		return nil, errors.New("inconsistent Codex thread metadata")
 	}
 	if b.session.Native != "" && b.session.Native != m.Thread {
-		return errors.New("this AX bridge belongs to another Codex session")
+		return nil, errors.New("this AX bridge belongs to another Codex session")
 	}
 	b.session.Native = m.Thread
 	b.session.Started = true
 	if e := saveSession(b.file, b.session); e != nil {
-		return e
+		return nil, e
 	}
-	// A call is made only after connectLoop publishes the connection. Keeping the
-	// same lock binds the native identity before any offer can use it.
-	if b.c == nil {
-		return errors.New("AX broker reconnecting")
-	}
-	return b.c.call("ax.presence", object{"native_session_id": m.Thread, "permission_mode": m.Turn.Sandbox, "state": "ready"}, nil)
+	return object{"native_session_id": m.Thread, "permission_mode": m.Turn.Sandbox, "state": "ready"}, nil
 }
 func Bridge(ctx context.Context, dir, file string, in io.Reader, out io.Writer) error {
 	return runBridge(ctx, dir, file, in, out, nil)
@@ -381,15 +410,6 @@ func runBridge(ctx context.Context, dir, file string, in io.Reader, out io.Write
 			}
 			var result any
 			e = json.Unmarshal(p.Params, &call)
-			if e == nil {
-				e = b.call("ax.heartbeat", object{}, nil)
-			}
-			if e == nil {
-				e = b.bind(call.Meta)
-			}
-			if e == nil {
-				e = b.activate()
-			}
 			method := map[string]string{"list_agents": "ax.list", "send_message": "ax.send", "reply": "ax.reply", "get_message": "ax.get_message", "ack_message": "ax.ack", "delivery_status": "ax.status"}[call.Name]
 			if e == nil && method == "" {
 				e = errors.New("unknown AX tool")
@@ -414,16 +434,22 @@ func runBridge(ctx context.Context, dir, file string, in io.Reader, out io.Write
 				}
 			}
 			if e == nil {
-				e = b.call(method, clean, &result)
+				callCtx, cancelCall := context.WithTimeout(ctx, 10*time.Second)
+				e = b.toolCall(callCtx, call.Meta, method, clean, &result)
+				cancelCall()
 			}
 			if e == nil && (method == "ax.send" || method == "ax.reply") {
-				result = object{"message": result, "next_action": "End your turn after sending. AX wakes you when a reply arrives. Do not poll status or sleep waiting for it."}
+				result = object{"message": result, "client_message_id": clean["client_message_id"], "next_action": "End your turn after sending. AX wakes you when a reply arrives. Do not poll status or sleep waiting for it."}
 			}
 			body := string(raw(result))
+			response := object{"isError": e != nil}
 			if e != nil {
-				body = e.Error()
+				failure := toolFailure(e, clean)
+				body = string(raw(failure))
+				response["structuredContent"] = failure
 			}
-			e = b.emit(packet{ID: p.ID, Result: raw(object{"content": []object{{"type": "text", "text": body}}, "isError": e != nil})})
+			response["content"] = []object{{"type": "text", "text": body}}
+			e = b.emit(packet{ID: p.ID, Result: raw(response)})
 		case "ping":
 			e = b.emit(packet{ID: p.ID, Result: raw(object{})})
 		default:

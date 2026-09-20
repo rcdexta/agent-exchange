@@ -1,6 +1,7 @@
 package ax
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -82,7 +83,8 @@ func writeFrame(w io.Writer, p packet) error {
 type client struct {
 	conn    net.Conn
 	mu      sync.Mutex
-	writeMu sync.Mutex
+	writing chan struct{}
+	closed  sync.Once
 	next    int
 	pending map[string]chan packet
 	offers  chan Message
@@ -94,10 +96,13 @@ func dial(path string) (*client, error) {
 	if e != nil {
 		return nil, e
 	}
-	c := &client{conn: conn, pending: map[string]chan packet{}, offers: make(chan Message, 8), done: make(chan struct{})}
+	return newClient(conn), nil
+}
+
+func newClient(conn net.Conn) *client {
+	c := &client{conn: conn, writing: make(chan struct{}, 1), pending: map[string]chan packet{}, offers: make(chan Message, 8), done: make(chan struct{})}
 	go func() {
-		defer close(c.done)
-		defer conn.Close()
+		defer c.close()
 		for {
 			p, e := readFrame(conn)
 			if e != nil {
@@ -126,10 +131,46 @@ func dial(path string) (*client, error) {
 			}
 		}
 	}()
-	return c, nil
+	return c
 }
-func (c *client) close() { c.conn.Close() }
+func (c *client) close() {
+	c.closed.Do(func() { close(c.done); c.conn.Close() })
+}
+
+// Once a write starts, a missing response leaves the operation's outcome
+// unknown. A retry must retain the original idempotency key.
+type transportError struct {
+	cause     error
+	submitted bool
+}
+
+func (e *transportError) Error() string { return e.cause.Error() }
+func (e *transportError) Unwrap() error { return e.cause }
+
 func (c *client) call(method string, args any, out any) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return c.callContext(ctx, method, args, out)
+}
+
+func (c *client) callContext(ctx context.Context, method string, args any, out any) error {
+	select {
+	case c.writing <- struct{}{}:
+	case <-ctx.Done():
+		return &transportError{cause: ctx.Err()}
+	case <-c.done:
+		return &transportError{cause: errors.New("broker connection closed")}
+	}
+	if err := ctx.Err(); err != nil {
+		<-c.writing
+		return &transportError{cause: err}
+	}
+	select {
+	case <-c.done:
+		<-c.writing
+		return &transportError{cause: errors.New("broker connection closed")}
+	default:
+	}
 	c.mu.Lock()
 	c.next++
 	id := fmt.Sprint(c.next)
@@ -137,12 +178,18 @@ func (c *client) call(method string, args any, out any) error {
 	c.pending[id] = ch
 	c.mu.Unlock()
 	defer func() { c.mu.Lock(); delete(c.pending, id); c.mu.Unlock() }()
-	c.writeMu.Lock()
-	c.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	deadline := time.Now().Add(5 * time.Second)
+	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
+		deadline = d
+	}
+	stop := context.AfterFunc(ctx, c.close)
+	defer stop()
+	c.conn.SetWriteDeadline(deadline)
 	e := writeFrame(c.conn, packet{ID: json.RawMessage(id), Method: method, Params: raw(args)})
-	c.writeMu.Unlock()
+	<-c.writing
 	if e != nil {
-		return e
+		c.close()
+		return &transportError{cause: e, submitted: true}
 	}
 	select {
 	case p := <-ch:
@@ -150,12 +197,16 @@ func (c *client) call(method string, args any, out any) error {
 			return p.Error
 		}
 		if out != nil {
-			return json.Unmarshal(p.Result, out)
+			if err := json.Unmarshal(p.Result, out); err != nil {
+				c.close()
+				return &transportError{cause: err, submitted: true}
+			}
 		}
 		return nil
 	case <-c.done:
-		return errors.New("broker connection closed")
-	case <-time.After(10 * time.Second):
-		return errors.New("broker response timed out; retry sends using the same client_message_id")
+		return &transportError{cause: errors.New("broker connection closed"), submitted: true}
+	case <-ctx.Done():
+		c.close()
+		return &transportError{cause: ctx.Err(), submitted: true}
 	}
 }
