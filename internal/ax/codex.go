@@ -22,7 +22,7 @@ import (
 func startCodex(ctx context.Context, dir, file, bin string, config []string, startupErrors chan<- error) (string, func(), error) {
 	ctx, cancel := context.WithCancel(ctx)
 	socket := filepath.Join(dir, randomID("codex_")+".sock")
-	log, err := privateFile(filepath.Join(dir, "codex.log"), syscall.O_CREAT|syscall.O_WRONLY|syscall.O_APPEND)
+	log, err := openDiagnosticLog(dir, "codex.log")
 	if err != nil {
 		cancel()
 		return "", nil, err
@@ -40,6 +40,7 @@ func startCodex(ctx context.Context, dir, file, bin string, config []string, sta
 		return "", nil, err
 	}
 	done := make(chan error, 1)
+	go watchDiagnosticLog(ctx, dir, "codex.log")
 	go func() { done <- cmd.Wait(); log.Close() }()
 	cleanup := func() { cancel(); <-done; os.Remove(socket) }
 	var conn *websocket.Conn

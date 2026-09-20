@@ -180,15 +180,52 @@ func meshFor(cwd string) (string, error) {
 }
 func socketPath(dir string) string { return filepath.Join(dir, "broker.sock") }
 func ensureBroker(dir string) error {
+	if err := resourcePause(dir, time.Now()); err != nil {
+		return err
+	}
 	if c, e := dial(socketPath(dir)); e == nil {
 		defer c.close()
 		return c.call("ax.ping", object{}, nil)
+	}
+	// Serialize startup across callers. Keep this separate from the broker's
+	// lifetime lock; never unlink either inode or transfer ownership by pathname.
+	deadline := time.Now().Add(5 * time.Second)
+	var startup *os.File
+	for time.Now().Before(deadline) {
+		var err error
+		startup, err = lockFile(filepath.Join(dir, "broker-start.lock"))
+		if err == nil {
+			break
+		}
+		if c, e := dial(socketPath(dir)); e == nil {
+			err = c.call("ax.ping", object{}, nil)
+			c.close()
+			return err
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if startup == nil {
+		return errors.New("AX broker startup is already in progress")
+	}
+	defer startup.Close()
+	// Another caller may have started it while we waited for the startup lock.
+	if c, e := dial(socketPath(dir)); e == nil {
+		defer c.close()
+		return c.call("ax.ping", object{}, nil)
+	}
+	owner, err := lockFile(filepath.Join(dir, "broker.lock"))
+	if err != nil {
+		return fmt.Errorf("AX broker owns its lock but is not accepting connections: %w", err)
+	}
+	owner.Close()
+	if err := resourcePause(dir, time.Now()); err != nil {
+		return err
 	}
 	exe, e := os.Executable()
 	if e != nil {
 		return e
 	}
-	log, e := privateFile(filepath.Join(dir, "broker.log"), syscall.O_CREAT|syscall.O_WRONLY|syscall.O_APPEND)
+	log, e := openDiagnosticLog(dir, "broker.log")
 	if e != nil {
 		return e
 	}
@@ -202,7 +239,7 @@ func ensureBroker(dir string) error {
 		return e
 	}
 	go cmd.Wait()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline = time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		if c, e := dial(socketPath(dir)); e == nil {
 			e = c.call("ax.ping", object{}, nil)

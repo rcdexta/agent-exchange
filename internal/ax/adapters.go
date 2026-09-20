@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sync"
+	"time"
 )
 
 // A harness owns session selection and native wake delivery. The broker and
@@ -93,7 +94,14 @@ func startAdapterHost(ctx context.Context, dir, file string, failures chan<- err
 		l.Close()
 		return "", nil, err
 	}
+	server := adapterServer(ctx, dir, file, failures, wake)
+	go server.Serve(limitListener(l, 16))
+	return path, func() { server.Close(); os.Remove(path) }, nil
+}
+
+func adapterServer(ctx context.Context, dir, file string, failures chan<- error, wake func(context.Context, string, string) error) *http.Server {
 	a := &adapterHost{pending: map[string]*adapterWake{}, wakes: make(chan *adapterWake), wake: wake}
+	wakeSlots := make(chan struct{}, 8)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/bind", func(w http.ResponseWriter, r *http.Request) {
 		var input struct{ Native, Permission, State string }
@@ -112,6 +120,16 @@ func startAdapterHost(ctx context.Context, dir, file string, failures chan<- err
 		w.WriteHeader(http.StatusNoContent)
 	})
 	mux.HandleFunc("/wake", func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case wakeSlots <- struct{}{}:
+			defer func() { <-wakeSlots }()
+		default:
+			http.Error(w, "AX wake capacity reached", http.StatusServiceUnavailable)
+			return
+		}
+		wakeCtx, stop := context.WithTimeout(r.Context(), 15*time.Second)
+		defer stop()
+		r = r.WithContext(wakeCtx)
 		var input adapterWake
 		err := json.NewDecoder(io.LimitReader(r.Body, maxFrame)).Decode(&input)
 		s, loadErr := loadSession(file)
@@ -145,10 +163,14 @@ func startAdapterHost(ctx context.Context, dir, file string, failures chan<- err
 		w.WriteHeader(http.StatusNoContent)
 	})
 	mux.HandleFunc("/next", func(w http.ResponseWriter, r *http.Request) {
+		timer := time.NewTimer(30 * time.Second)
+		defer timer.Stop()
 		select {
 		case wake := <-a.wakes:
 			json.NewEncoder(w).Encode(wake)
 		case <-r.Context().Done():
+		case <-timer.C:
+			w.WriteHeader(http.StatusNoContent)
 		}
 	})
 	mux.HandleFunc("/receipt", func(w http.ResponseWriter, r *http.Request) {
@@ -172,9 +194,7 @@ func startAdapterHost(ctx context.Context, dir, file string, failures chan<- err
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
-	server := &http.Server{Handler: mux, BaseContext: func(net.Listener) context.Context { return ctx }}
-	go server.Serve(l)
-	return path, func() { server.Close(); os.Remove(path) }, nil
+	return &http.Server{Handler: mux, ReadHeaderTimeout: 3 * time.Second, ReadTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192, BaseContext: func(net.Listener) context.Context { return ctx }}
 }
 
 func notifyAdapter(ctx context.Context, s Session, text string) error {

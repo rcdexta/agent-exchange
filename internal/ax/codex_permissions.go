@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -61,7 +62,7 @@ func codexBypassSocket(ctx context.Context, dir, remote string) (string, func(),
 		return "", nil, err
 	}
 	ctx, cancel := context.WithCancel(ctx)
-	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := &http.Server{ReadHeaderTimeout: 3 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		backend, err := dialCodex(ctx, remote)
 		if err != nil {
 			http.Error(w, "Codex backend unavailable", http.StatusBadGateway)
@@ -73,6 +74,8 @@ func codexBypassSocket(ctx context.Context, dir, remote string) (string, func(),
 			return
 		}
 		defer front.Close()
+		front.SetReadLimit(64 << 20)
+		backend.SetReadLimit(64 << 20)
 		stop := context.AfterFunc(ctx, func() { front.Close(); backend.Close() })
 		defer stop()
 		done := make(chan struct{})
@@ -99,7 +102,7 @@ func codexBypassSocket(ctx context.Context, dir, remote string) (string, func(),
 		backend.Close()
 		<-done
 	})}
-	go server.Serve(listener)
+	go server.Serve(limitListener(listener, 8))
 	return "unix://" + path, func() { cancel(); server.Close(); os.Remove(path) }, nil
 }
 

@@ -70,9 +70,10 @@ func (c *serverConn) send(p packet) error {
 }
 
 type broker struct {
-	mu    sync.Mutex
-	db    *sql.DB
-	peers map[string]*peer
+	mu          sync.Mutex
+	db          *sql.DB
+	peers       map[string]*peer
+	lastCleanup time.Time
 }
 
 func openBroker(dir string) (*broker, error) {
@@ -114,6 +115,9 @@ func openBroker(dir string) (*broker, error) {
  CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY,message TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,state TEXT NOT NULL,at INTEGER NOT NULL,epoch INTEGER NOT NULL);
  CREATE INDEX IF NOT EXISTS mailbox ON messages(recipient,seq);
  CREATE INDEX IF NOT EXISTS sender_time ON messages(sender,created);
+ CREATE INDEX IF NOT EXISTS receipt_history ON events(message,id);
+ CREATE INDEX IF NOT EXISTS terminal_retention ON messages(created) WHERE state IN ('acknowledged','expired','refused','abandoned');
+ CREATE INDEX IF NOT EXISTS pending_mailbox ON messages(recipient,seq) WHERE state IN ('queued','handoff_started','delivery_uncertain');
  COMMIT;`)
 	if e != nil {
 		return fail(e)
@@ -204,6 +208,7 @@ func Serve(ctx context.Context, dir string) error {
 				return
 			case <-t.C:
 				b.mu.Lock()
+				b.cleanup(time.Now())
 				b.dispatch()
 				b.mu.Unlock()
 			}
@@ -268,6 +273,9 @@ func Serve(ctx context.Context, dir string) error {
 				}
 				if sc.send(reply) != nil {
 					return
+				}
+				if !dispatchAfter(p.Method) {
+					continue
 				}
 				b.mu.Lock()
 				b.dispatch()
@@ -415,6 +423,7 @@ func (b *broker) request(c *serverConn, method string, params json.RawMessage) (
 		if p == nil || subtle.ConstantTimeCompare([]byte(p.hash), []byte(digest(a.Secret))) != 1 {
 			return nil, errors.New("invalid lifecycle credential")
 		}
+		before := p.Agent
 		// Native resume/picker selection chooses the ID after enrollment. The
 		// credentialed lifecycle hook may establish its first binding.
 		if p.Native == "" && nativeID(p.Host, a.Native) {
@@ -429,9 +438,22 @@ func (b *broker) request(c *serverConn, method string, params json.RawMessage) (
 		if a.State == "ready" || a.State == "busy" || a.State == "blocked" {
 			p.State = a.State
 		}
-		return object{"ok": true}, b.save(p)
+		if p.Agent == before {
+			return object{"ok": true}, nil
+		}
+		if err := b.save(p); err != nil {
+			p.Agent = before
+			return nil, err
+		}
+		return object{"ok": true}, nil
 	}
 	// Local administration is available only on unbound connections, never via MCP.
+	if c.agent == "" && method == "ax.inbox" {
+		return b.inbox(a.Target)
+	}
+	if c.agent == "" && method == "ax.inbox_message" {
+		return b.message(a.MessageID)
+	}
 	if c.agent == "" && method == "ax.inspect" {
 		return b.list(), nil
 	}
@@ -730,8 +752,6 @@ func (b *broker) send(p *peer, target, parent, text, key string, ttl int, reply 
 // the agent forgets to acknowledge or spends hours working on the first task.
 func (b *broker) dispatch() {
 	now := time.Now()
-	// Terminal receipts and their idempotency keys are retained for seven days.
-	_, _ = b.db.Exec("DELETE FROM messages WHERE created<? AND state IN ('acknowledged','expired','refused','abandoned')", now.Add(-7*24*time.Hour).UnixMilli())
 	for _, p := range b.peers {
 		if p.conn != nil && now.Sub(p.seen) > 15*time.Second {
 			p.conn.Close()
@@ -780,4 +800,23 @@ func (b *broker) dispatch() {
 			break
 		}
 	}
+}
+
+func dispatchAfter(method string) bool {
+	switch method {
+	case "ax.ping", "ax.heartbeat", "ax.list", "ax.inspect", "ax.status", "ax.inspect_message", "ax.inbox", "ax.inbox_message":
+		return false
+	}
+	return true
+}
+
+func (b *broker) cleanup(now time.Time) {
+	if now.Sub(b.lastCleanup) < time.Minute {
+		return
+	}
+	b.lastCleanup = now
+	// Bound each transaction and keep cleanup off request and heartbeat paths.
+	_, _ = b.db.Exec(`DELETE FROM messages WHERE id IN (
+ SELECT id FROM messages WHERE created<? AND state IN ('acknowledged','expired','refused','abandoned')
+ ORDER BY created LIMIT 256)`, now.Add(-7*24*time.Hour).UnixMilli())
 }

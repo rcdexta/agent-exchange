@@ -65,8 +65,13 @@ func (g *grokConnection) wake(ctx context.Context, native, text string) error {
 		g.mu.Unlock()
 		return errors.New("Grok session is not ready")
 	}
+	if len(g.prompts) >= 8 {
+		g.mu.Unlock()
+		return errors.New("AX wake capacity reached")
+	}
 	g.prompts[id] = done
 	g.mu.Unlock()
+	defer func() { g.mu.Lock(); delete(g.prompts, id); g.mu.Unlock() }()
 	request := object{"jsonrpc": "2.0", "id": "ax_" + id, "method": "session/prompt", "params": object{"sessionId": native, "prompt": []object{{"type": "text", "text": text}}, "_meta": object{"promptId": id, "verbatim": true}}}
 	if err := g.send(object{"type": "acp", "payload": string(raw(request))}); err != nil {
 		return err
@@ -99,8 +104,9 @@ func prepareGrok(ctx context.Context, dir, file, bin string, s Session, args, en
 		cancel()
 		return nil, nil, nil, err
 	}
+	l = limitListener(l, 8)
 	os.Chmod(proxy, 0600)
-	log, err := privateFile(filepath.Join(dir, "grok.log"), syscall.O_CREAT|syscall.O_WRONLY|syscall.O_APPEND)
+	log, err := openDiagnosticLog(dir, "grok.log")
 	if err != nil {
 		cancel()
 		l.Close()
@@ -116,6 +122,7 @@ func prepareGrok(ctx context.Context, dir, file, bin string, s Session, args, en
 		return nil, nil, nil, err
 	}
 	done := make(chan error, 1)
+	go watchDiagnosticLog(ctx, dir, "grok.log")
 	go func() { done <- cmd.Wait(); log.Close() }()
 	var mu sync.Mutex
 	var active *grokConnection
@@ -246,6 +253,18 @@ func proxyGrok(client net.Conn, g *grokConnection, mcp object, bind func(string,
 				}
 				method, _ := rpc["method"].(string)
 				if method == "session/new" || method == "session/load" || method == "session/resume" {
+					pendingMu.Lock()
+					full := len(pending) >= 64
+					pendingMu.Unlock()
+					// Forward native traffic even if AX cannot track more selections.
+					// Capacity must not disconnect the user's TUI or grow without bound.
+					if full {
+						if err = g.send(frame); err != nil {
+							done <- err
+							return
+						}
+						continue
+					}
 					params, _ := rpc["params"].(map[string]any)
 					if params == nil {
 						params = object{}
