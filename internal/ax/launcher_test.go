@@ -179,7 +179,7 @@ func TestBridgeHonorsLatestStartupBinding(t *testing.T) {
 			t.Fatal(err)
 		}
 		b := &bridge{session: initial, file: file}
-		if err := b.bind(raw(object{"threadId": uuid()})); err == nil {
+		if err := b.bind(context.Background(), nil, raw(object{"threadId": uuid()})); err == nil {
 			t.Fatalf("%s accepted an unconfirmed or mismatched conversation", host)
 		}
 		saved, err := loadSession(file)
