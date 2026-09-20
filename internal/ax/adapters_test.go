@@ -239,7 +239,7 @@ func TestOpenCodeTUIKeepsNestedAndRelativePlugins(t *testing.T) {
 }
 
 func TestGrokPermissionGrantIsLimitedToAXTools(t *testing.T) {
-	for _, name := range []string{"ax__list_agents", "ax__send_message", "ax__reply", "other__reply", "run_terminal_command", "ax__unknown"} {
+	for _, name := range []string{"ax__list_agents", "ax__send_message", "ax__reply", "other__reply", "run_terminal_command", "ax__unknown", "ax__spawn_agent"} {
 		rpc := object{"method": "session/request_permission", "params": object{"options": []any{object{"kind": "allow_once", "optionId": "once"}, object{"kind": "allow_always", "_meta": object{"server_prefix": "ax", "tool_name": name}}}}}
 		// Exercise decoded JSON, as received from the native protocol.
 		json.Unmarshal(raw(rpc), &rpc)

@@ -32,6 +32,8 @@ func startCodex(ctx context.Context, dir, file, bin string, config []string, sta
 		args = append(args, "-c", value)
 	}
 	cmd := exec.CommandContext(ctx, bin, args...)
+	// Shell commands issued by this backend belong to this AX launch too.
+	cmd.Env = append(os.Environ(), "AX_HOME="+dir, "AX_SESSION_FILE="+file)
 	cmd.Stdout, cmd.Stderr = log, log
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err = cmd.Start(); err != nil {
