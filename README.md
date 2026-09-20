@@ -22,6 +22,8 @@ The [installation guide](agents.md) contains the install command, verification s
 
 [Installation, updates, and uninstalling](agents.md)
 
+The inbox and resource protection described below are unreleased. The installer downloads the latest published release.
+
 ## Try it
 
 Open two terminals, in any repositories:
@@ -72,10 +74,18 @@ Adding an adapter currently requires an AX source change and rebuild. Independen
 
 One Go broker serves your local agents. SQLite keeps queued messages across restarts. Agents send through AX tools, finish their turn, and wake for replies. Queued, accepted by the harness, and acknowledged are distinct delivery states.
 
-AX helpers share a CPU circuit breaker and restart cooldown. Database work, diagnostic logs, and adapter connections have limits that preserve native coding sessions. See [resource protection and its limits](claude.rc/resource-safety.md).
-
 Tasks delegated through your AX agents retain their scope and the recipient's native permission controls. AX configures each launched process without rewriting global harness configuration or conversation transcripts.
 
 [Usage and resume](claude.rc/README.md) · [Architecture](claude.rc/architecture.md) · [Verification](claude.rc/verification.md)
+
+## Resource protection
+
+The broker, bridges, lifecycle hooks, and inbox share a CPU budget. After an initial ten-second observation period, five CPU seconds across these helpers in a ten-second window pauses messaging for sixty seconds. Native coding sessions keep running during this pause; queued messages remain in SQLite.
+
+Run `ax doctor` to see whether messaging is paused and when the cooldown ends. Bridges normally keep their MCP connection open and reconnect to the broker after cooldown. A standalone helper that continues consuming sustained CPU can terminate itself; its harness may then require the MCP connection to be reconnected.
+
+This is a sampled circuit breaker, not a hard CPU quota. Native harnesses and AX launchers that own native backends are outside the budget. Complete crash isolation is still pending for the Codex and Grok native backend integrations. Database cleanup, diagnostic logs, and adapter connections also have bounded work, but AX does not enforce a hard memory or total database size limit. [Protection behavior and limits](claude.rc/resource-safety.md).
+
+Updating the binary preserves saved conversations and mail. Already-running processes keep their old code, so new protections apply only after those helpers are replaced. Follow the [update guide](agents.md); replacing the executable alone does not upgrade a running broker or bridge.
 
 Licensed under [MIT](LICENSE). Commercial and closed-source use is allowed; retain the copyright and license notice.
