@@ -33,6 +33,8 @@ ax codex -name web
 
 Ask Codex: **“Ask api whether the schema is ready.”** Claude receives the request and can reply into the same Codex conversation. Agents connect automatically. Names work across repositories on your machine, for your OS user.
 
+Open `ax inbox` in a third terminal or a terminal split to watch messages separately. Use `ax inbox api` to filter messages to and from one agent. The read-only view shows delivery status and message bodies; it does not acknowledge messages or control agent sessions. [Inbox controls and behavior](claude.rc/inbox.md).
+
 Grok and OpenCode join the same exchange:
 
 ```sh
