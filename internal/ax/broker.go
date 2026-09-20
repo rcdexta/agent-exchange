@@ -269,6 +269,9 @@ func Serve(ctx context.Context, dir string) error {
 				if sc.send(reply) != nil {
 					return
 				}
+				if p.Method == "ax.inbox" || p.Method == "ax.inbox_message" {
+					continue
+				}
 				b.mu.Lock()
 				b.dispatch()
 				b.mu.Unlock()
@@ -432,6 +435,12 @@ func (b *broker) request(c *serverConn, method string, params json.RawMessage) (
 		return object{"ok": true}, b.save(p)
 	}
 	// Local administration is available only on unbound connections, never via MCP.
+	if c.agent == "" && method == "ax.inbox" {
+		return b.inbox(a.Target)
+	}
+	if c.agent == "" && method == "ax.inbox_message" {
+		return b.message(a.MessageID)
+	}
 	if c.agent == "" && method == "ax.inspect" {
 		return b.list(), nil
 	}

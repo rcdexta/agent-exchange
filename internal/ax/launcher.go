@@ -315,6 +315,7 @@ AX owns the name option. Other arguments go to the native harness.
 Ask either agent to message another by name.
 
   ax agents                     List local agents
+  ax inbox [NAME]               Watch messages in a separate terminal
   ax status MESSAGE_ID          Inspect delivery receipts
   ax resolve MESSAGE_ID abandon Release a stuck message without redelivery
   ax policy NAME hold           Pause incoming mail (accept/hold/refuse)
@@ -341,6 +342,15 @@ Ask either agent to message another by name.
 		return Bridge(ctx, dir, os.Getenv("AX_SESSION_FILE"), os.Stdin, os.Stdout)
 	case "hook":
 		return Hook(dir, os.Getenv("AX_SESSION_FILE"), os.Stdin)
+	case "inbox":
+		if len(args) > 2 {
+			return errors.New("usage: ax inbox [NAME]")
+		}
+		target := ""
+		if len(args) == 2 {
+			target = args[1]
+		}
+		return Inbox(ctx, dir, target, os.Stdin, os.Stdout)
 	case "doctor":
 		for _, host := range []string{"claude", "codex", "grok", "opencode"} {
 			cmd := exec.Command(host, "--version")
