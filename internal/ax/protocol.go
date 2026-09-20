@@ -88,6 +88,7 @@ type client struct {
 	next    int
 	pending map[string]chan packet
 	offers  chan Message
+	notices chan deliveryNotice
 	done    chan struct{}
 }
 
@@ -100,7 +101,7 @@ func dial(path string) (*client, error) {
 }
 
 func newClient(conn net.Conn) *client {
-	c := &client{conn: conn, writing: make(chan struct{}, 1), pending: map[string]chan packet{}, offers: make(chan Message, 8), done: make(chan struct{})}
+	c := &client{conn: conn, writing: make(chan struct{}, 1), pending: map[string]chan packet{}, offers: make(chan Message, 8), notices: make(chan deliveryNotice, 1), done: make(chan struct{})}
 	go func() {
 		defer c.close()
 		for {
@@ -108,7 +109,17 @@ func newClient(conn net.Conn) *client {
 			if e != nil {
 				return
 			}
-			if p.Method == "ax.delivery.offer" {
+			if p.Method == "ax.delivery.notice" {
+				var n deliveryNotice
+				if json.Unmarshal(p.Params, &n) != nil {
+					return
+				}
+				select {
+				case c.notices <- n:
+				default:
+					return
+				}
+			} else if p.Method == "ax.delivery.offer" {
 				var m Message
 				if json.Unmarshal(p.Params, &m) != nil {
 					return

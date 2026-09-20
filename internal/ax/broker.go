@@ -49,11 +49,13 @@ type Message struct {
 }
 type peer struct {
 	Agent
-	hash  string
-	epoch int64
-	seen  time.Time
-	conn  *serverConn
-	ready bool
+	hash        string
+	epoch       int64
+	seen        time.Time
+	conn        *serverConn
+	ready       bool
+	notice      string
+	noticeRetry time.Time
 }
 type serverConn struct {
 	net.Conn
@@ -106,7 +108,7 @@ func openBroker(dir string) (*broker, error) {
 	if e = db.QueryRow("PRAGMA user_version").Scan(&version); e != nil {
 		return fail(e)
 	}
-	if version > 2 {
+	if version > 3 {
 		return fail(errors.New("database version is newer than this AX binary"))
 	}
 	_, e = db.Exec(`BEGIN;
@@ -127,6 +129,12 @@ func openBroker(dir string) (*broker, error) {
 		if e != nil {
 			return fail(e)
 		}
+	}
+	if _, e = db.Exec(`BEGIN;
+ CREATE TABLE IF NOT EXISTS notifications(id TEXT PRIMARY KEY,recipient TEXT NOT NULL REFERENCES agents(id),message TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,data TEXT NOT NULL,acknowledged INTEGER NOT NULL DEFAULT 0);
+ CREATE INDEX IF NOT EXISTS pending_notifications ON notifications(recipient) WHERE acknowledged=0;
+ PRAGMA user_version=3; COMMIT;`); e != nil {
+		return fail(e)
 	}
 	var mode string
 	if e = db.QueryRow("PRAGMA journal_mode").Scan(&mode); e != nil {
@@ -297,7 +305,11 @@ func (b *broker) event(id, state string, epoch int64) error {
 	if _, e = tx.Exec("UPDATE messages SET state=? WHERE id=?", state, id); e != nil {
 		return e
 	}
-	if _, e = tx.Exec("INSERT INTO events(message,state,at,epoch) VALUES(?,?,?,?)", id, state, time.Now().UnixMilli(), epoch); e != nil {
+	at := time.Now().UnixMilli()
+	if _, e = tx.Exec("INSERT INTO events(message,state,at,epoch) VALUES(?,?,?,?)", id, state, at, epoch); e != nil {
+		return e
+	}
+	if e = failureNotice(tx, id, state, at); e != nil {
 		return e
 	}
 	return tx.Commit()
@@ -326,18 +338,19 @@ func (b *broker) auth(c *serverConn) (*peer, error) {
 func (b *broker) request(c *serverConn, method string, params json.RawMessage) (any, error) {
 	var a struct {
 		Session
-		Version    string `json:"version"`
-		Native     string `json:"native_session_id"`
-		Permission string `json:"permission_mode"`
-		State      string `json:"state"`
-		Policy     string `json:"policy"`
-		Target     string `json:"target"`
-		Text       string `json:"text"`
-		ClientID   string `json:"client_message_id"`
-		MessageID  string `json:"message_id"`
-		Receipt    string `json:"receipt"`
-		TTL        int    `json:"ttl_seconds"`
-		Mesh       string `json:"mesh"`
+		Version        string `json:"version"`
+		Native         string `json:"native_session_id"`
+		Permission     string `json:"permission_mode"`
+		State          string `json:"state"`
+		Policy         string `json:"policy"`
+		Target         string `json:"target"`
+		Text           string `json:"text"`
+		ClientID       string `json:"client_message_id"`
+		MessageID      string `json:"message_id"`
+		NotificationID string `json:"notification_id"`
+		Receipt        string `json:"receipt"`
+		TTL            int    `json:"ttl_seconds"`
+		Mesh           string `json:"mesh"`
 	}
 	if e := json.Unmarshal(params, &a); e != nil {
 		return nil, errors.New("invalid parameters")
@@ -411,6 +424,8 @@ func (b *broker) request(c *serverConn, method string, params json.RawMessage) (
 			p.conn.Close()
 		}
 		p.conn = c
+		p.notice = ""
+		p.noticeRetry = time.Time{}
 		p.ready = false
 		p.seen = time.Now()
 		p.Online = true
@@ -494,6 +509,16 @@ func (b *broker) request(c *serverConn, method string, params json.RawMessage) (
 		return nil, e
 	}
 	switch method {
+	case "ax.notifications":
+		return b.notices(p.ID)
+	case "ax.ack_notification":
+		return b.ackNotice(p, a.NotificationID)
+	case "ax.notice_retry":
+		if p.notice == a.NotificationID {
+			p.notice = ""
+			p.noticeRetry = time.Now().Add(30 * time.Second)
+		}
+		return object{"ok": true}, nil
 	case "ax.ready":
 		p.ready = true
 		return object{"ok": true}, nil
@@ -759,6 +784,7 @@ func (b *broker) dispatch() {
 			p.Online = false
 			b.uncertain(p.ID, p.epoch)
 		}
+		b.dispatchNotice(p, now)
 		for {
 			var id, state string
 			var expires int64
@@ -804,7 +830,7 @@ func (b *broker) dispatch() {
 
 func dispatchAfter(method string) bool {
 	switch method {
-	case "ax.ping", "ax.heartbeat", "ax.list", "ax.inspect", "ax.status", "ax.inspect_message", "ax.inbox", "ax.inbox_message":
+	case "ax.ping", "ax.heartbeat", "ax.list", "ax.inspect", "ax.status", "ax.inspect_message", "ax.inbox", "ax.inbox_message", "ax.notifications":
 		return false
 	}
 	return true
