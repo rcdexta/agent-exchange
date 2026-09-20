@@ -10,9 +10,11 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 const Version = "0.5.4"
@@ -333,16 +335,41 @@ Ask either agent to message another by name.
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM)
 	defer cancel()
+	// Do not export GOMAXPROCS or apply inherited limits to native harnesses.
+	switch args[0] {
+	case "serve", "bridge", "hook", "inbox":
+		runtime.GOMAXPROCS(1)
+	}
 	switch args[0] {
 	case "serve":
+		if err := resourcePause(dir, time.Now()); err != nil {
+			return err
+		}
+		stopResources := watchResources(context.Background(), dir, cancel, func() { os.Exit(75) })
+		defer stopResources()
+		go watchDiagnosticLog(ctx, dir, "broker.log")
 		return Serve(ctx, dir)
 	case "claude", "codex", "grok", "opencode":
 		return Launch(ctx, dir, args[0], args[1:])
 	case "bridge":
-		return Bridge(ctx, dir, os.Getenv("AX_SESSION_FILE"), os.Stdin, os.Stdout)
+		return runBridge(ctx, dir, os.Getenv("AX_SESSION_FILE"), os.Stdin, os.Stdout, func() { os.Exit(75) })
 	case "hook":
+		// A resource pause must not block a native permission or lifecycle hook.
+		if err := resourcePause(dir, time.Now()); err != nil {
+			return nil
+		}
+		defer func() {
+			if cpu, err := processCPU(); err == nil {
+				_, _ = reportCPU(dir, time.Now(), cpu)
+			}
+		}()
 		return Hook(dir, os.Getenv("AX_SESSION_FILE"), os.Stdin)
 	case "inbox":
+		if err := resourcePause(dir, time.Now()); err != nil {
+			return err
+		}
+		stopResources := watchResources(ctx, dir, cancel, nil)
+		defer stopResources()
 		if len(args) > 2 {
 			return errors.New("usage: ax inbox [NAME]")
 		}
@@ -352,6 +379,7 @@ Ask either agent to message another by name.
 		}
 		return Inbox(ctx, dir, target, os.Stdin, os.Stdout)
 	case "doctor":
+		fmt.Println(resourceStatus(dir))
 		for _, host := range []string{"claude", "codex", "grok", "opencode"} {
 			cmd := exec.Command(host, "--version")
 			b, e := cmd.Output()
@@ -362,6 +390,9 @@ Ask either agent to message another by name.
 			}
 		}
 		fmt.Println("Claude: interactive development Channel opt-in required at launch.\nDiscovery: named agents connect across repositories on this machine.\nDelivery: queued and acknowledged are reported separately.")
+		if resourcePause(dir, time.Now()) != nil {
+			return nil
+		}
 		return ensureBroker(dir)
 	case "agents", "status", "policy", "resolve":
 		if e = ensureBroker(dir); e != nil {

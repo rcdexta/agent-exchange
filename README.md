@@ -72,6 +72,8 @@ Adding an adapter currently requires an AX source change and rebuild. Independen
 
 One Go broker serves your local agents. SQLite keeps queued messages across restarts. Agents send through AX tools, finish their turn, and wake for replies. Queued, accepted by the harness, and acknowledged are distinct delivery states.
 
+AX helpers share a CPU circuit breaker and restart cooldown. Database work, diagnostic logs, and adapter connections have limits that preserve native coding sessions. See [resource protection and its limits](claude.rc/resource-safety.md).
+
 Tasks delegated through your AX agents retain their scope and the recipient's native permission controls. AX configures each launched process without rewriting global harness configuration or conversation transcripts.
 
 [Usage and resume](claude.rc/README.md) · [Architecture](claude.rc/architecture.md) · [Verification](claude.rc/verification.md)

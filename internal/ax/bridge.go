@@ -69,6 +69,9 @@ func (b *bridge) emit(p packet) error {
 	return json.NewEncoder(b.out).Encode(p)
 }
 func (b *bridge) call(method string, a any, out any) error {
+	if err := resourcePause(b.dir, time.Now()); err != nil {
+		return err
+	}
 	deadline := time.Now().Add(10 * time.Second)
 	for {
 		b.mu.Lock()
@@ -88,6 +91,7 @@ func (b *bridge) call(method string, a any, out any) error {
 	}
 }
 func (b *bridge) connectLoop() {
+	retryDelay := time.Second
 	for retry := false; b.ctx.Err() == nil; retry = true {
 		// Bound every reconnect path, including immediate disconnects after a
 		// successful handshake and failures between the broker ping and dial.
@@ -95,8 +99,23 @@ func (b *bridge) connectLoop() {
 			select {
 			case <-b.ctx.Done():
 				return
-			case <-time.After(time.Second):
+			case <-time.After(retryDelay):
 			}
+			retryDelay = min(2*retryDelay, 15*time.Second)
+		}
+		if err := resourcePause(b.dir, time.Now()); err != nil {
+			retryDelay = time.Second
+			delay := resourcePeriod
+			var paused *resourcePaused
+			if errors.As(err, &paused) {
+				delay = min(time.Until(paused.Until), resourceCooldown)
+			}
+			select {
+			case <-b.ctx.Done():
+				return
+			case <-time.After(max(delay, time.Second)):
+			}
+			continue
 		}
 		if e := ensureBroker(b.dir); e != nil {
 			fmt.Fprintln(os.Stderr, "AX:", e)
@@ -138,6 +157,7 @@ func (b *bridge) connectLoop() {
 				if c.call("ax.heartbeat", object{}, nil) != nil {
 					break connection
 				}
+				retryDelay = time.Second
 				b.bootstrap()
 			case m := <-c.offers:
 				b.deliver(c, m)
@@ -297,6 +317,10 @@ func (b *bridge) bind(meta json.RawMessage) error {
 	return b.c.call("ax.presence", object{"native_session_id": m.Thread, "permission_mode": m.Turn.Sandbox, "state": "ready"}, nil)
 }
 func Bridge(ctx context.Context, dir, file string, in io.Reader, out io.Writer) error {
+	return runBridge(ctx, dir, file, in, out, nil)
+}
+
+func runBridge(ctx context.Context, dir, file string, in io.Reader, out io.Writer, hardStop func()) error {
 	s, e := loadSession(file)
 	if e != nil {
 		return e
@@ -304,6 +328,18 @@ func Bridge(ctx context.Context, dir, file string, in io.Reader, out io.Writer) 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	b := &bridge{session: s, file: file, dir: dir, instance: randomID("ins_"), out: out, ctx: ctx}
+	stopResources := watchResources(ctx, dir, func() {
+		// A stuck worker must not block the watchdog behind its mutex.
+		if !b.mu.TryLock() {
+			return
+		}
+		c := b.c
+		b.mu.Unlock()
+		if c != nil {
+			c.close()
+		}
+	}, hardStop)
+	defer stopResources()
 	go b.connectLoop()
 	scan := bufio.NewScanner(in)
 	scan.Buffer(make([]byte, 4096), maxFrame)

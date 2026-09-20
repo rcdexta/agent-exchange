@@ -48,6 +48,7 @@ export default {
     const receive = async () => {
       while (!abort.signal.aborted) {
         const wake = await request("/next");
+        if (!wake) continue; // Idle long polls expire without delivering a message.
         let error;
         try {
           if (wake.native !== selected) throw new Error("AX wake belongs to another conversation");
