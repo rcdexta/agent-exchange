@@ -88,14 +88,18 @@ func (b *bridge) call(method string, a any, out any) error {
 	}
 }
 func (b *bridge) connectLoop() {
-	for b.ctx.Err() == nil {
-		if e := ensureBroker(b.dir); e != nil {
-			fmt.Fprintln(os.Stderr, "AX:", e)
+	for retry := false; b.ctx.Err() == nil; retry = true {
+		// Bound every reconnect path, including immediate disconnects after a
+		// successful handshake and failures between the broker ping and dial.
+		if retry {
 			select {
 			case <-b.ctx.Done():
 				return
 			case <-time.After(time.Second):
 			}
+		}
+		if e := ensureBroker(b.dir); e != nil {
+			fmt.Fprintln(os.Stderr, "AX:", e)
 			continue
 		}
 		c, e := dial(socketPath(b.dir))
@@ -109,11 +113,6 @@ func (b *bridge) connectLoop() {
 		if e != nil {
 			c.close()
 			fmt.Fprintln(os.Stderr, "AX:", e)
-			select {
-			case <-b.ctx.Done():
-				return
-			case <-time.After(time.Second):
-			}
 			continue
 		}
 		b.mu.Lock()

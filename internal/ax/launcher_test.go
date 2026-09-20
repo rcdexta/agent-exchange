@@ -189,15 +189,45 @@ func TestBridgeHonorsLatestStartupBinding(t *testing.T) {
 	}
 }
 
-func TestHostStopsAndReturnsStartupFailure(t *testing.T) {
+func TestHostSurvivesMessagingFailure(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	failure := errors.New("wrong conversation; resume the saved AX name")
-	startupErrors := make(chan error, 1)
-	startupErrors <- failure
-	cmd := exec.CommandContext(ctx, "/bin/sleep", "30")
-	if err := runHost(cmd, startupErrors); err != failure || cmd.ProcessState == nil || ctx.Err() != nil {
-		t.Fatalf("startup failure left host running or lost error: %v", err)
+	in, input, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer in.Close()
+	defer input.Close()
+	logs, err := os.CreateTemp(t.TempDir(), "host-stderr-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer logs.Close()
+	var output bytes.Buffer
+	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", "read line; printf '%s' \"$line\"; exit 7")
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = in, &output, logs
+	startupErrors := make(chan error)
+	done := make(chan error, 1)
+	go func() { done <- runHost(cmd, startupErrors) }()
+	select {
+	case startupErrors <- errors.New("broker unavailable"):
+	case err := <-done:
+		t.Fatalf("host exited before failure injection: %v", err)
+	case <-ctx.Done():
+		t.Fatal("host did not start")
+	}
+	close(startupErrors)
+	if _, err := input.WriteString("still coding\n"); err != nil {
+		t.Fatal(err)
+	}
+	err = <-done
+	logData, readErr := os.ReadFile(logs.Name())
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	var exit *exec.ExitError
+	if !errors.As(err, &exit) || exit.ExitCode() != 7 || output.String() != "still coding" || !strings.Contains(string(logData), "AX messaging unavailable: broker unavailable") {
+		t.Fatalf("messaging failure interrupted host: err=%v output=%q logs=%q", err, output.String(), logData)
 	}
 }
 
