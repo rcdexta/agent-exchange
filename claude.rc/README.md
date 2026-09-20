@@ -1,6 +1,6 @@
 # Using Agent Exchange
 
-Install the native harnesses you want to use and sign in normally. [Install the prebuilt AX binary](../agents.md) on macOS, Linux, or inside WSL 2. Building from source is optional.
+Install the native harnesses you want to use and sign in normally. [Install the prebuilt AX binary](../AGENTS.md) on macOS, Linux, or inside WSL 2. Building from source is optional.
 
 ## Launch and resume
 
