@@ -62,6 +62,10 @@ func withAXOptions(native, options []string) []string {
 }
 
 func Launch(ctx context.Context, dir, host string, args []string) error {
+	return launch(ctx, dir, host, args, "")
+}
+
+func launch(ctx context.Context, dir, host string, args []string, spawnToken string) error {
 	name, nativeArgs, e := launchArgs(args)
 	if e != nil {
 		return e
@@ -121,6 +125,14 @@ func Launch(ctx context.Context, dir, host string, args []string) error {
 	if s.Host != host {
 		return fmt.Errorf("name %q belongs to %s; choose another name", name, s.Host)
 	}
+	if s.SpawnToken != "" && s.SpawnToken != spawnToken {
+		return fmt.Errorf("agent %q is reserved for a pane launch; inspect ax spawn-status %s", name, name)
+	}
+	if spawnToken == "" {
+		s.SpawnRoot, s.SpawnDepth = randomID("tree_"), 0
+	}
+	s.SpawnToken = ""
+	s.Terminal = detectTerminal()
 	s.Workspace = cwd
 	s.Started = false // This launch must receive its own native SessionStart.
 	s.AllowBypass = bypass || os.Getenv("AX_ALLOW_BYPASS") == "1"
@@ -158,7 +170,10 @@ func Launch(ctx context.Context, dir, host string, args []string) error {
 		settings := object{"hooks": hooks}
 		allowed := []string{}
 		for _, tool := range toolSpecs {
-			allowed = append(allowed, "mcp__ax__"+tool.name)
+			// Launching a process retains the harness's normal tool approval.
+			if tool.name != "spawn_agent" {
+				allowed = append(allowed, "mcp__ax__"+tool.name)
+			}
 		}
 		argv = []string{"--mcp-config", string(raw(config)), "--settings", string(raw(settings)), "--dangerously-load-development-channels", "server:ax", "--allowedTools", strings.Join(allowed, ","), "--append-system-prompt", instructions}
 		if len(nativeArgs) == 0 && s.Native != "" {
@@ -318,6 +333,8 @@ Ask either agent to message another by name.
 
   ax agents                     List local agents
   ax inbox [NAME]               Watch messages in a separate terminal
+  ax spawn codex -name worker   Open a named peer in a new terminal pane
+  ax spawn-status NAME          Inspect a previous pane launch
   ax status MESSAGE_ID          Inspect delivery receipts
   ax resolve MESSAGE_ID abandon Release a stuck message without redelivery
   ax policy NAME hold           Pause incoming mail (accept/hold/refuse)
@@ -328,6 +345,14 @@ Ask either agent to message another by name.
 	if args[0] == "version" {
 		fmt.Println(Version)
 		return nil
+	}
+	if args[0] == "spawn-run" {
+		if len(args) != 4 {
+			return errors.New("invalid internal pane launch")
+		}
+		ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM)
+		defer cancel()
+		return runSpawn(ctx, args[1], args[2], args[3])
 	}
 	dir, e := dataDir()
 	if e != nil {
@@ -341,6 +366,21 @@ Ask either agent to message another by name.
 		runtime.GOMAXPROCS(1)
 	}
 	switch args[0] {
+	case "spawn":
+		result, err := spawnCLI(ctx, dir, args[1:])
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(os.Stdout).Encode(result)
+	case "spawn-status":
+		if len(args) != 2 || !validName.MatchString(args[1]) {
+			return errors.New("usage: ax spawn-status NAME")
+		}
+		result, err := spawnStatus(ctx, dir, args[1])
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(os.Stdout).Encode(result)
 	case "serve":
 		if err := resourcePause(dir, time.Now()); err != nil {
 			return err

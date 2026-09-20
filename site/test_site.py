@@ -49,7 +49,7 @@ for path, page in pages.items():
         checked += 1
 
 assert (DIST / 'agents.md').read_bytes() == (ROOT.parent / 'AGENTS.md').read_bytes()
-for slug in ('inbox', 'resource-safety'):
+for slug in ('inbox', 'resource-safety', 'spawning'):
     assert '<strong>Unreleased.</strong>' in (DIST / f'docs/{slug}.html').read_text()
 assert 'text/markdown' in (DIST / '_headers').read_text()
 assert '/AGENTS.md /agents.md 301' in (DIST / '_redirects').read_text()

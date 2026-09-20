@@ -19,17 +19,21 @@ import (
 )
 
 type Session struct {
-	ID            string `json:"agent_id"`
-	Secret        string `json:"secret"`
-	Name          string `json:"name"`
-	Host          string `json:"host"`
-	Mesh          string `json:"mesh"`
-	Workspace     string `json:"workspace"`
-	Native        string `json:"native_session_id"`
-	Started       bool   `json:"started"`
-	AllowBypass   bool   `json:"allow_bypass"`
-	CodexRemote   string `json:"codex_remote,omitempty"`
-	AdapterSocket string `json:"adapter_socket,omitempty"`
+	ID            string          `json:"agent_id"`
+	Secret        string          `json:"secret"`
+	Name          string          `json:"name"`
+	Host          string          `json:"host"`
+	Mesh          string          `json:"mesh"`
+	Workspace     string          `json:"workspace"`
+	Native        string          `json:"native_session_id"`
+	Started       bool            `json:"started"`
+	AllowBypass   bool            `json:"allow_bypass"`
+	CodexRemote   string          `json:"codex_remote,omitempty"`
+	AdapterSocket string          `json:"adapter_socket,omitempty"`
+	Terminal      terminalContext `json:"terminal,omitempty"`
+	SpawnRoot     string          `json:"spawn_root,omitempty"`
+	SpawnDepth    int             `json:"spawn_depth,omitempty"`
+	SpawnToken    string          `json:"spawn_token,omitempty"`
 }
 
 func randomID(prefix string) string {
@@ -130,7 +134,10 @@ func lockFile(p string) (*os.File, error) {
 	return f, nil
 }
 func saveSession(p string, s Session) error {
-	b, e := json.Marshal(s)
+	return savePrivateJSON(p, s)
+}
+func savePrivateJSON(p string, value any) error {
+	b, e := json.Marshal(value)
 	if e != nil {
 		return e
 	}

@@ -26,11 +26,15 @@ Launching the same AX name with no native arguments resumes its saved conversati
 
 Models, native prompts, and native options are forwarded. AX adds configuration to the launched process and does not rewrite global harness configuration or conversation transcripts. A native option being forwarded does not imply every native mode supports messaging.
 
+## Launch a peer in another pane
+
+On main, the unreleased `spawn_agent` tool and `ax spawn` command can open a named peer in the caller's tmux or iTerm2 session. Agents may use this only when you explicitly request a new agent. A task assignment or an opportunity to parallelize does not authorize a launch. See [pane launches and their limits](spawning.md).
+
 ## Permissions and delegation
 
 Launching AX establishes a standing policy: your local agents may carry out tasks you delegate through another AX agent, including an explicitly requested GitHub review submission. They do not ask you to authorize that same task again merely because it arrived through AX. The task's scope and the recipient's native sandbox and tool approvals still apply. Quoted documents and external content do not expand that authority.
 
-AX authorizes only its own six messaging tools. Grok's adapter answers ordinary permission requests for those exact tools once, without storing grants or approving other tools. A hook that explicitly requires confirmation is preserved.
+AX authorizes its own messaging tools. Grok's adapter answers ordinary permission requests for those exact tools once, without storing grants or approving other tools. Launching a new agent retains the harness's normal tool approval; the spawn tool is excluded from AX's automatic grants. A hook that explicitly requires confirmation is preserved.
 
 Unknown permission modes and unapproved bypass modes hold mail. An explicit bypass launch through Codex or Grok also opts that endpoint into AX messaging. `AX_ALLOW_BYPASS=1` provides the same opt-in for an intentionally configured endpoint; it does not change native permissions. Codex applies its explicit bypass choice through its private native session API, including resume.
 

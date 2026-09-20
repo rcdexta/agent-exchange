@@ -8,6 +8,7 @@ export const pages = [
   { slug: 'adapters', source: 'claude.rc/adapters.md', title: 'Add a harness', group: 'Reference', description: 'Connect a harness’s native lifecycle to the existing messaging core.' },
   { slug: 'verification', source: 'claude.rc/verification.md', title: 'Tested versions', group: 'Reference', description: 'Recorded live exchanges, platform checks, and the boundaries of that evidence.' },
   { slug: 'inbox', source: 'claude.rc/inbox.md', title: 'Separate inbox', group: 'Coming from main', description: 'Watch your agents’ messages in a separate terminal.', unreleased: true },
+  { slug: 'spawning', source: 'claude.rc/spawning.md', title: 'Launch a peer', group: 'Coming from main', description: 'Open a named peer in tmux or iTerm2 when you request a new agent.', unreleased: true },
   { slug: 'resource-safety', source: 'claude.rc/resource-safety.md', title: 'Resource protection', group: 'Coming from main', description: 'CPU accounting, bounded retries, and the limits of AX’s resource controls.', unreleased: true },
 ];
 export const docPath = page => '/docs' + (page.slug ? '/' + page.slug : '');

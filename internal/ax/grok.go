@@ -380,7 +380,7 @@ func proxyGrok(client net.Conn, g *grokConnection, mcp object, bind func(string,
 	}
 }
 
-// Launching AX authorizes its six messaging tools, as with Claude's per-launch
+// Launching AX authorizes its messaging tools, as with Claude's per-launch
 // tool allowlist. Never approve another tool, persist a grant, or answer a hook
 // that explicitly asks for confirmation.
 func grokAXPermission(rpc object) string {
@@ -404,7 +404,7 @@ func grokAXPermission(rpc object) string {
 			continue
 		}
 		for _, tool := range toolSpecs {
-			if meta["tool_name"] == "ax__"+tool.name {
+			if tool.name != "spawn_agent" && meta["tool_name"] == "ax__"+tool.name {
 				known = true
 			}
 		}
