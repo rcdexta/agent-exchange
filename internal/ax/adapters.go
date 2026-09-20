@@ -18,6 +18,7 @@ import (
 // A harness owns session selection and native wake delivery. The broker and
 // messaging tools remain shared, independent of the harness's implementation.
 type harnessAdapter struct {
+	nativeLaunch     bool
 	toolPrefix       string
 	nativeID         func(string) bool
 	readyOnDiscovery bool
@@ -29,12 +30,16 @@ var harnesses = map[string]harnessAdapter{
 	"codex":    {toolPrefix: "ax.", nativeID: validNative},
 	"grok":     {toolPrefix: "ax__", nativeID: validNative, readyOnDiscovery: true},
 	"opencode": {toolPrefix: "ax_", nativeID: regexp.MustCompile(`^ses_[a-zA-Z0-9]+$`).MatchString, readyOnDiscovery: true},
+	"pi":       {toolPrefix: "ax_", nativeID: validNative, nativeLaunch: true},
 }
 
 func init() {
 	grok, opencode := harnesses["grok"], harnesses["opencode"]
 	grok.prepare, opencode.prepare = prepareGrok, prepareOpenCode
 	harnesses["grok"], harnesses["opencode"] = grok, opencode
+	pi := harnesses["pi"]
+	pi.prepare = preparePi
+	harnesses["pi"] = pi
 }
 
 func nativeID(host, id string) bool {

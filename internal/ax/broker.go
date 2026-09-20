@@ -620,6 +620,11 @@ func (b *broker) status(id string) (any, error) {
 	return object{"message": m, "events": events}, rows.Err()
 }
 func safe(p *peer) bool {
+	if p.Host == "pi" && p.Permission == "native" {
+		// Pi has no built-in approval mode. Its configured extensions and
+		// execution environment retain control over all native tool calls.
+		return true
+	}
 	if p.AllowBypass {
 		return true
 	}

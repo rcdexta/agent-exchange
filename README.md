@@ -60,6 +60,8 @@ ax codex -name web resume "session-name"
 
 All four have completed live message exchanges on macOS, including resumed conversations. Release binaries and the broker have automated platform checks; live harness verification on Linux and WSL is still pending. [Tested versions and evidence](claude.rc/verification.md).
 
+Pi support is in development through a native extension, with automatic idle wake and queued delivery during a turn. It has adapter contract tests but still needs a live Pi exchange before release. Cursor integration is under investigation. See the [Pi and Cursor adapter notes](claude.rc/cursor-pi.md) for current boundaries.
+
 ## Add another harness
 
 The broker, durable mailbox, MCP tools, and delegation policy are shared. A new adapter connects the harness's native launch, session selection, and message-wake APIs to that core.

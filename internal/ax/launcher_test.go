@@ -107,7 +107,7 @@ func TestLauncherForwardsPromptAndResume(t *testing.T) {
 
 func TestLifecycleBindsExistingSession(t *testing.T) {
 	dir := startTestServer(t)
-	for _, host := range []string{"claude", "codex"} {
+	for _, host := range []string{"claude", "codex", "pi"} {
 		s := Session{ID: randomID("agt_"), Secret: randomID("") + randomID(""), Name: host, Host: host, Mesh: testMesh}
 		file := filepath.Join(dir, host+".json")
 		if err := saveSession(file, s); err != nil {
@@ -122,13 +122,16 @@ func TestLifecycleBindsExistingSession(t *testing.T) {
 			t.Fatal(err)
 		}
 		id := uuid()
-		hook := object{"session_id": id, "hook_event_name": "SessionStart", "permission_mode": "default"}
+		hook := object{"session_id": id, "hook_event_name": "SessionStart", "permission_mode": "default", "session_file": "/original repo/session.jsonl"}
 		if err = Hook(dir, file, bytes.NewReader(raw(hook))); err != nil {
 			t.Fatal(err)
 		}
 		saved, err := loadSession(file)
 		if err != nil || saved.Native != id || !saved.Started {
 			t.Fatalf("binding: %+v %v", saved, err)
+		}
+		if host == "pi" && saved.NativeFile != hook["session_file"] {
+			t.Fatal("Pi lost the session file needed to resume from another repository")
 		}
 		hook["session_id"] = uuid()
 		if err = Hook(dir, file, bytes.NewReader(raw(hook))); err == nil {

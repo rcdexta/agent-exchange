@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 const Version = "0.5.4"
@@ -216,12 +218,28 @@ func Launch(ctx context.Context, dir, host string, args []string) error {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	if harnesses[host].nativeLaunch {
+		// Replace AX with the harness. Its optional extension owns the messaging
+		// child, so AX has no parent or terminal transport in the session lifetime.
+		return execNative(nativeBin, argv, cmd.Environ(), lock)
+	}
 	// Let the real harness own terminal input and its normal signal handling.
 	// AX never emulates keystrokes or reads/mutates its private transcript files.
 	ignored := make(chan os.Signal, 2)
 	signal.Notify(ignored, os.Interrupt)
 	defer signal.Stop(ignored)
 	return runHost(cmd, startupErrors)
+}
+
+func execNative(binary string, args, env []string, lock *os.File) error {
+	flags, err := unix.FcntlInt(lock.Fd(), unix.F_GETFD, 0)
+	if err != nil {
+		return err
+	}
+	if _, err = unix.FcntlInt(lock.Fd(), unix.F_SETFD, flags&^unix.FD_CLOEXEC); err != nil {
+		return err
+	}
+	return syscall.Exec(binary, append([]string{binary}, args...), env)
 }
 
 // Messaging is optional: report adapter failures without terminating the host.
@@ -258,6 +276,7 @@ func Hook(dir, file string, in io.Reader) error {
 		Event      string `json:"hook_event_name"`
 		Permission string `json:"permission_mode"`
 		Tool       string `json:"tool_name"`
+		File       string `json:"session_file"`
 	}
 	if e = json.NewDecoder(io.LimitReader(in, maxFrame)).Decode(&input); e != nil {
 		return e
@@ -275,6 +294,9 @@ func Hook(dir, file string, in io.Reader) error {
 		return nil
 	}
 	if input.Event == "SessionStart" {
+		if s.Host == "pi" && input.File != "" && filepath.IsAbs(input.File) {
+			s.NativeFile = input.File
+		}
 		s.Started = true
 		if e = saveSession(file, s); e != nil {
 			return e
@@ -305,6 +327,7 @@ func Main(args []string) error {
   ax codex -name web
   ax grok -name worker
   ax opencode -name editor
+  ax pi -name worker
 
 AX owns the name option. Other arguments go to the native harness.
   ax claude -name api -r "session-name"
@@ -336,7 +359,7 @@ Ask either agent to message another by name.
 	switch args[0] {
 	case "serve":
 		return Serve(ctx, dir)
-	case "claude", "codex", "grok", "opencode":
+	case "claude", "codex", "grok", "opencode", "pi":
 		return Launch(ctx, dir, args[0], args[1:])
 	case "bridge":
 		return Bridge(ctx, dir, os.Getenv("AX_SESSION_FILE"), os.Stdin, os.Stdout)
@@ -352,7 +375,7 @@ Ask either agent to message another by name.
 		}
 		return Inbox(ctx, dir, target, os.Stdin, os.Stdout)
 	case "doctor":
-		for _, host := range []string{"claude", "codex", "grok", "opencode"} {
+		for _, host := range []string{"claude", "codex", "grok", "opencode", "pi"} {
 			cmd := exec.Command(host, "--version")
 			b, e := cmd.Output()
 			if e != nil {
