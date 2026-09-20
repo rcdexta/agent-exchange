@@ -165,6 +165,34 @@ func TestFIFOUncertaintyAndLeaseFencing(t *testing.T) {
 	}
 }
 
+func TestDuplicateConnectionPreservesOwnerAndExpiredLeaseCanRecover(t *testing.T) {
+	b, _ := localBroker(t)
+	s, owner, _ := endpoint(t, b, "web", testMesh)
+	x, y := net.Pipe()
+	defer x.Close()
+	defer y.Close()
+	duplicate := &serverConn{Conn: x}
+	args := object{"version": "1", "agent_id": s.ID, "secret": s.Secret}
+	epoch := owner.epoch
+	if _, err := b.request(duplicate, "ax.connect", raw(args)); err == nil {
+		t.Fatal("duplicate connection displaced a healthy owner")
+	}
+	if p := b.peers[s.ID]; p.conn != owner || p.epoch != epoch || !p.ready {
+		t.Fatal("rejected connection changed the active lease")
+	}
+	request(t, b, owner, "ax.heartbeat", object{})
+	b.peers[s.ID].seen = time.Now().Add(-16 * time.Second)
+	request(t, b, duplicate, "ax.connect", args)
+	if b.peers[s.ID].epoch != epoch+1 {
+		t.Fatal("expired lease did not advance on takeover")
+	}
+	if _, err := b.request(owner, "ax.heartbeat", raw(object{})); err == nil {
+		t.Fatal("expired owner was not fenced")
+	}
+	b.disconnect(owner)
+	request(t, b, duplicate, "ax.heartbeat", object{})
+}
+
 func TestAcceptedHandoffDoesNotWaitForTaskAcknowledgment(t *testing.T) {
 	for _, receipt := range []string{"wake_accepted", "channel_written", "content_served"} {
 		t.Run(receipt, func(t *testing.T) {

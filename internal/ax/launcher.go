@@ -13,8 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-
-	"golang.org/x/term"
 )
 
 const Version = "0.5.4"
@@ -226,35 +224,28 @@ func Launch(ctx context.Context, dir, host string, args []string) error {
 	return runHost(cmd, startupErrors)
 }
 
-// Startup errors must survive the TUI, rather than disappear behind a session
-// that looks usable while its AX endpoint remains permanently "starting".
+// Messaging is optional: report adapter failures without terminating the host.
 func runHost(cmd *exec.Cmd, startupErrors <-chan error) error {
-	restore := func() {}
-	if input, ok := cmd.Stdin.(*os.File); ok {
-		fd := int(input.Fd())
-		if state, err := term.GetState(fd); err == nil {
-			restore = func() {
-				term.Restore(fd, state)
-				if cmd.Stdout != nil {
-					// A killed native TUI cannot disable its terminal reporting modes.
-					fmt.Fprint(cmd.Stdout, "\x1b[<u\x1b[=0u\x1b[>4;0m\x1b[?2004l\x1b[?1004l\x1b[?1049l\x1b[0 q\x1b[?25h\x1b[0m\n")
-				}
-			}
-		}
-	}
 	if err := cmd.Start(); err != nil {
 		return err
 	}
+	log := cmd.Stderr
+	if log == nil {
+		log = os.Stderr
+	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
-	select {
-	case err := <-done:
-		return err
-	case err := <-startupErrors:
-		cmd.Process.Kill()
-		<-done
-		restore()
-		return err
+	for {
+		select {
+		case err := <-done:
+			return err
+		case err, ok := <-startupErrors:
+			if !ok {
+				startupErrors = nil
+			} else if err != nil {
+				fmt.Fprintln(log, "AX messaging unavailable:", err)
+			}
+		}
 	}
 }
 func Hook(dir, file string, in io.Reader) error {

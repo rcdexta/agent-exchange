@@ -9,10 +9,106 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
+
+func TestDuplicateBridgesDoNotFightForConnection(t *testing.T) {
+	dir := startTestServer(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	admin, err := dial(socketPath(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.close()
+	s := Session{ID: randomID("agt_"), Secret: randomID("") + randomID(""), Name: "web", Host: "codex", Mesh: testMesh, Native: uuid()}
+	if err = admin.call("ax.enroll", s, nil); err != nil {
+		t.Fatal(err)
+	}
+	start := func() (*bridge, func()) {
+		ctx, cancel := context.WithCancel(ctx)
+		b := &bridge{ctx: ctx, dir: dir, session: s}
+		done := make(chan struct{})
+		go func() { defer close(done); b.connectLoop() }()
+		return b, func() { cancel(); <-done }
+	}
+	connected := func(b *bridge) *client {
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		return b.c
+	}
+	waitConnected := func(b *bridge) *client {
+		for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); {
+			if c := connected(b); c != nil {
+				return c
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		t.Fatal("bridge never connected")
+		return nil
+	}
+	first, stopFirst := start()
+	defer stopFirst()
+	original := waitConnected(first)
+	second, stopSecond := start()
+	defer stopSecond()
+	time.Sleep(1200 * time.Millisecond)
+	if connected(first) != original || connected(second) != nil {
+		t.Fatal("duplicate bridges repeatedly replace the healthy connection")
+	}
+	if err := original.call("ax.heartbeat", object{}, nil); err != nil {
+		t.Fatalf("duplicate disconnected the original bridge: %v", err)
+	}
+	stopFirst()
+	replacement := waitConnected(second)
+	if err := replacement.call("ax.heartbeat", object{}, nil); err != nil {
+		t.Fatalf("waiting bridge did not recover after owner stopped: %v", err)
+	}
+}
+
+func TestBridgeBacksOffAfterImmediateDisconnect(t *testing.T) {
+	dir, err := os.MkdirTemp("/tmp", "ax-backoff-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	l, err := net.Listen("unix", socketPath(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var attempts atomic.Int32
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			c, err := l.Accept()
+			if err != nil {
+				return
+			}
+			c.SetDeadline(time.Now().Add(time.Second))
+			p, err := readFrame(c)
+			if err == nil {
+				if p.Method == "ax.connect" {
+					attempts.Add(1)
+				}
+				writeFrame(c, packet{ID: p.ID, Result: raw(object{})})
+			}
+			c.Close()
+		}
+	}()
+	defer func() { l.Close(); <-done }()
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	b := &bridge{ctx: ctx, dir: dir, session: Session{ID: "web"}}
+	b.connectLoop()
+	if n := attempts.Load(); n != 1 {
+		t.Fatalf("immediate disconnect triggered %d connection attempts instead of one", n)
+	}
+}
 
 func handoffClient(t *testing.T) (*client, <-chan packet) {
 	t.Helper()

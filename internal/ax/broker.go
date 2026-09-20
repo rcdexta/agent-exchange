@@ -383,6 +383,11 @@ func (b *broker) request(c *serverConn, method string, params json.RawMessage) (
 		if c.agent != "" {
 			return nil, errors.New("connection already registered")
 		}
+		// Duplicate MCP processes must not fence and reconnect each other forever.
+		// Preserve the live owner; a disconnected or expired lease can be replaced.
+		if p.conn != nil && time.Since(p.seen) <= 15*time.Second {
+			return nil, errors.New("AX agent already connected; waiting for its existing bridge to disconnect")
+		}
 		for _, other := range b.peers {
 			if other.ID != p.ID && other.Name == p.Name && other.Online {
 				return nil, errors.New("name already in use")
