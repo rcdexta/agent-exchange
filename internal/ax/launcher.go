@@ -345,6 +345,8 @@ Ask either agent to message another by name.
 		if err := resourcePause(dir, time.Now()); err != nil {
 			return err
 		}
+		// Keep the monitor alive after it cancels Serve, so a hot shutdown
+		// cannot disable its own fallback. The defer stops it when Serve returns.
 		stopResources := watchResources(context.Background(), dir, cancel, func() { os.Exit(75) })
 		defer stopResources()
 		go watchDiagnosticLog(ctx, dir, "broker.log")

@@ -4,9 +4,9 @@ AX treats messaging as optional. A resource pause must preserve the native codin
 
 ## CPU budget
 
-New broker, bridge, hook, and inbox processes share CPU accounting inside their private `AX_HOME`. Long-lived helpers sample their own user and system CPU every two seconds; hooks report when they finish. Accounting uses ten one-second buckets. After an initial ten-second observation period, five CPU seconds in the rolling window starts a sixty-second messaging cooldown.
+New broker, bridge, hook, and inbox processes share CPU accounting inside their private `AX_HOME`. Long-lived helpers sample their own user and system CPU every two seconds; hooks report when they finish. Accounting uses ten one-second buckets. After an initial ten-second observation period, five CPU seconds in the rolling window starts a sixty-second messaging cooldown. A reporting gap longer than ten seconds starts a fresh observation period.
 
-The budget file has a fixed-size record and is replaced atomically. A nonblocking file lock coordinates writers. Long-lived helpers carry an unsent sample forward when another writer holds the lock; a short-lived hook's final report is best effort. There is no process-wide scan or registry of PIDs to signal.
+The budget file has a fixed-size record and is replaced atomically. A nonblocking file lock coordinates writers. Long-lived helpers carry an unsent sample forward when another writer holds the lock, while still reading and honoring an existing cooldown; a short-lived hook's final report is best effort. There is no process-wide scan or registry of PIDs to signal.
 
 During cooldown:
 
@@ -14,7 +14,7 @@ During cooldown:
 - Bridges close the broker connection, keep their MCP interface available, and return a clear paused status for tool calls. They wait before attempting to reconnect or start a broker.
 - Native lifecycle hooks return without interfering with a permission prompt or tool operation.
 - The inbox exits through its normal terminal cleanup.
-- A standalone broker or bridge that continues consuming CPU after being paused can terminate itself. It never signals its parent, a process group, or a native backend. A harness may require its MCP connection to be reconnected after this fallback.
+- A standalone broker or bridge can terminate itself only after two consecutive post-pause samples each consume at least one CPU second per two-second interval. A brief burst resets this count when followed by a lower sample. It never signals its parent, a process group, or a native backend. A harness may require its MCP connection to be reconnected after this fallback.
 
 The persisted cooldown prevents newly started helpers from immediately restarting the same work. `ax doctor` reports the cooldown and configured protection. Existing processes from older binaries need to be replaced before their CPU is included; replacing the installed executable alone does not retrofit running helpers.
 

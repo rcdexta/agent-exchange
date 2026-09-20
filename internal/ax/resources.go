@@ -99,6 +99,15 @@ func reportCPU(dir string, now time.Time, cpu time.Duration) (bool, error) {
 	// Never wait behind a stalled helper. The caller keeps unsent CPU for its
 	// next sample, instead of blocking messaging or silently losing the sample.
 	if err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		if errors.Is(err, syscall.EWOULDBLOCK) || errors.Is(err, syscall.EAGAIN) {
+			// Atomic replacement makes cooldown reads safe without the writer
+			// lock. Keep the contention error so the caller retains unsent CPU.
+			s, readErr := readBudget(dir)
+			if readErr != nil {
+				return false, readErr
+			}
+			return s.PausedUntil > now.UnixMilli(), err
+		}
 		return false, err
 	}
 	s, err := readBudget(dir)
@@ -153,6 +162,7 @@ func watchResources(ctx context.Context, dir string, pause func(), hardStop func
 func watchResourceSamples(ctx context.Context, dir string, pause func(), hardStop func(), ticks <-chan time.Time, readCPU func() (time.Duration, error)) {
 	var reported, previous time.Duration
 	wasPaused, warned := false, false
+	hotSamples := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -164,15 +174,22 @@ func watchResourceSamples(ctx context.Context, dir string, pause func(), hardSto
 				paused, err = reportCPU(dir, now, cpu-reported)
 				if err == nil {
 					reported = cpu
+				}
+				if err == nil || errors.Is(err, syscall.EWOULDBLOCK) || errors.Is(err, syscall.EAGAIN) {
+					if paused && wasPaused && cpu-previous >= resourcePeriod/2 {
+						hotSamples++
+					} else {
+						hotSamples = 0
+					}
 					if paused {
 						pause()
 						if !warned {
 							fmt.Fprintln(os.Stderr, resourcePause(dir, now))
 							warned = true
 						}
-						// A helper still burning CPU after its messaging was paused
-						// is stopped locally. Never signal a parent or process group.
-						if wasPaused && cpu-previous > resourcePeriod/10 && hardStop != nil {
+						// Require sustained CPU after pausing, not a transient burst.
+						// Never signal a parent or process group.
+						if hotSamples >= 2 && hardStop != nil {
 							hardStop()
 						}
 					} else {

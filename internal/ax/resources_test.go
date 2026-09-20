@@ -17,7 +17,7 @@ func TestWatchdogPausesBeforeStoppingOnlyTheHotHelper(t *testing.T) {
 	defer cancel()
 	ticks := make(chan time.Time)
 	cpu := make(chan time.Duration)
-	pauses := make(chan struct{}, 4)
+	pauses := make(chan struct{}, 16)
 	stops := make(chan struct{}, 4)
 	done := make(chan struct{})
 	go func() {
@@ -42,15 +42,24 @@ func TestWatchdogPausesBeforeStoppingOnlyTheHotHelper(t *testing.T) {
 		t.Fatal("stopped helper before trying a pause")
 	default:
 	}
-	feed(12, 7800*time.Millisecond)
+	feed(12, 7000*time.Millisecond) // A 20% post-pause sample is tolerated.
+	feed(14, 8200*time.Millisecond) // One high sample must not disconnect MCP.
+	feed(16, 8600*time.Millisecond) // Lower usage resets the consecutive count.
+	feed(18, 9800*time.Millisecond)
+	select {
+	case <-stops:
+		t.Fatal("brief CPU burst stopped helper")
+	default:
+	}
+	feed(20, 11000*time.Millisecond)
 	select {
 	case <-stops:
 	case <-time.After(time.Second):
 		t.Fatal("continuing CPU consumption did not stop hot helper")
 	}
-	feed(14, 7800*time.Millisecond)
+	feed(22, 11000*time.Millisecond)
 	// Sending another tick waits until the preceding sample has been processed.
-	feed(16, 7800*time.Millisecond)
+	feed(24, 11000*time.Millisecond)
 	select {
 	case <-stops:
 		t.Fatal("idle helper was stopped")
@@ -61,6 +70,85 @@ func TestWatchdogPausesBeforeStoppingOnlyTheHotHelper(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("watchdog ignored cancellation")
+	}
+}
+
+func TestWatchdogHonorsCooldownDespiteBusyAccountingLock(t *testing.T) {
+	dir := testDir(t)
+	start := time.Unix(1000, 0)
+	state := resourceBudget{Started: start.Unix(), PausedUntil: start.Add(resourceCooldown).UnixMilli()}
+	if err := os.WriteFile(filepath.Join(dir, "resource-budget.json"), raw(state), 0600); err != nil {
+		t.Fatal(err)
+	}
+	lock, err := lockFile(filepath.Join(dir, "resource-budget.lock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lock.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ticks := make(chan time.Time, 1)
+	ticks <- start
+	pauses := make(chan struct{}, 1)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		watchResourceSamples(ctx, dir, func() { pauses <- struct{}{} }, nil, ticks, func() (time.Duration, error) { return time.Second, nil })
+	}()
+	select {
+	case <-pauses:
+	case <-time.After(time.Second):
+		t.Fatal("held accounting lock hid an existing cooldown")
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("watchdog ignored cancellation")
+	}
+}
+
+func TestWatchdogRetainsCPUAcrossAccountingContention(t *testing.T) {
+	dir := testDir(t)
+	lock, err := lockFile(filepath.Join(dir, "resource-budget.lock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lock.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ticks := make(chan time.Time)
+	cpu := make(chan time.Duration)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		watchResourceSamples(ctx, dir, func() {}, nil, ticks, func() (time.Duration, error) { return <-cpu, nil })
+	}()
+	start := time.Unix(1000, 0)
+	ticks <- start
+	cpu <- 500 * time.Millisecond
+	// The next tick cannot be read until the contended report has finished.
+	ticks <- start.Add(resourcePeriod)
+	lock.Close()
+	cpu <- time.Second
+	ticks <- start.Add(2 * resourcePeriod)
+	state, err := readBudget(dir)
+	cpu <- time.Second
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("watchdog ignored cancellation")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	var total int64
+	for _, bucket := range state.Buckets {
+		total += bucket.CPU
+	}
+	if total != int64(time.Second) {
+		t.Fatalf("CPU from contended report lost or counted twice: %s", time.Duration(total))
 	}
 }
 
