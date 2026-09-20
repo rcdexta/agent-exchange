@@ -1,7 +1,7 @@
 {
   "name": "useax",
   "compatibility_date": "2026-09-20",
-  "assets": { "directory": "./dist" },
+  "assets": { "directory": "./dist", "not_found_handling": "404-page" },
   "routes": [{ "pattern": "useax.dev", "custom_domain": true }],
   "workers_dev": false
 }

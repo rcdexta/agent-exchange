@@ -8,9 +8,9 @@ Agent Exchange (`ax`) connects Claude Code, Codex CLI, Grok Build, and OpenCode 
 
 Ask your coding agent:
 
-> Read https://raw.githubusercontent.com/rcdexta/agent-exchange/main/AGENTS.md and install Agent Exchange.
+> Read https://useax.dev/agents.md and install Agent Exchange.
 
-You can also follow [AGENTS.md](AGENTS.md) yourself. It covers installation, verification, updates, and removal. AX uses prebuilt binaries, so you do not need Go, Make, or a GitHub account.
+You can also follow [AGENTS.md](AGENTS.md) yourself or browse the [documentation](https://useax.dev/docs). The guide covers installation, verification, updates, and removal. AX uses prebuilt binaries, so you do not need Go, Make, or a GitHub account.
 
 - **macOS 13 or later:** native binary for Apple Silicon or Intel.
 - **Linux:** static binary for ARM64 or x86_64.
@@ -84,6 +84,6 @@ Run `ax doctor` to see whether messaging is paused and when the cooldown ends. B
 
 This is a sampled circuit breaker, not a hard CPU quota. Native harnesses and AX launchers that own native backends are outside the budget. Complete crash isolation is still pending for the Codex and Grok native backend integrations. Database cleanup, diagnostic logs, and adapter connections also have bounded work, but AX does not enforce a hard memory or total database size limit. [Protection behavior and limits](claude.rc/resource-safety.md).
 
-Updating the binary preserves saved conversations and mail. Already-running processes keep their old code, so new protections apply only after those helpers are replaced. Follow the [update guide](agents.md); replacing the executable alone does not upgrade a running broker or bridge.
+Updating the binary preserves saved conversations and mail. Already-running processes keep their old code, so new protections apply only after those helpers are replaced. Follow the [update guide](AGENTS.md); replacing the executable alone does not upgrade a running broker or bridge.
 
 Licensed under [MIT](LICENSE). Commercial and closed-source use is allowed; retain the copyright and license notice.
