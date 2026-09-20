@@ -1,10 +1,10 @@
 # Install Agent Exchange
 
-The canonical installation instructions are in [agents.md](../agents.md). That guide covers macOS, Linux, Windows through WSL 2, verification, updates, version selection, and removal.
+The canonical installation instructions are in [AGENTS.md](../AGENTS.md). That guide covers macOS, Linux, Windows through WSL 2, verification, updates, version selection, and removal.
 
 To let a coding agent install AX, ask it to read:
 
-https://raw.githubusercontent.com/rcdexta/agent-exchange/main/agents.md
+https://raw.githubusercontent.com/rcdexta/agent-exchange/main/AGENTS.md
 
 ## Building from source
 
