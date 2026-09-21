@@ -1,4 +1,4 @@
-module github.com/rcdexta/agent-exchange
+module github.com/summationai/agent-exchange
 
 go 1.24.5
 

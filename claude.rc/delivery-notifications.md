@@ -1,6 +1,6 @@
 # Delivery failure notifications
 
-Tracks [issue #3](https://github.com/rcdexta/agent-exchange/issues/3).
+Tracks [issue #3](https://github.com/summationai/agent-exchange/issues/3).
 
 When a queued request expires or is refused, AX stores a notification for its
 sender in the same transaction as the terminal delivery state. Each notification

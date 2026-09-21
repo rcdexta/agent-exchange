@@ -66,4 +66,4 @@ State lives in a private `.ax` directory under your home directory. `AX_HOME` se
 - Pi uses a native extension and keeps its terminal independent of the messaging helper. Pi pane spawning is not supported yet. See [Pi setup and limits](pi.md).
 - Live harness verification targets macOS. Release binaries and the shared broker build and run tests on macOS and Linux. Windows users run AX and their harnesses inside WSL 2. Native Windows and remote agent transport are not supported.
 
-Public binaries are available from [GitHub Releases](https://github.com/rcdexta/agent-exchange/releases/latest). See the [verification record](verification.md) for tested harness versions and current evidence.
+Public binaries are available from [GitHub Releases](https://github.com/summationai/agent-exchange/releases/latest). See the [verification record](verification.md) for tested harness versions and current evidence.

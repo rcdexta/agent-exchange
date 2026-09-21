@@ -35,15 +35,15 @@ The initial repository scope passed autoreview after fixing preservation of nest
 
 ## Binary installation
 
-[AX 0.5.3](https://github.com/rcdexta/agent-exchange/releases/tag/v0.5.3) publishes macOS and Linux archives for x86_64 and ARM64. All four native builds passed the race suite, vet, and installation tests that launch the installed broker. Linux archives contain statically linked binaries.
+[AX 0.5.3](https://github.com/summationai/agent-exchange/releases/tag/v0.5.3) publishes macOS and Linux archives for x86_64 and ARM64. All four native builds passed the race suite, vet, and installation tests that launch the installed broker. Linux archives contain statically linked binaries.
 
-The same installer tests passed inside Ubuntu on Windows WSL 2, using the Linux x86_64 release binary. The tests exercise installation, repeat installation, shell PATH preservation, a real broker connection, failed downloads and checksums, custom install directories, and symlink targets. See the [release workflow results](https://github.com/rcdexta/agent-exchange/actions/runs/35471875199).
+The same installer tests passed inside Ubuntu on Windows WSL 2, using the Linux x86_64 release binary. The tests exercise installation, repeat installation, shell PATH preservation, a real broker connection, failed downloads and checksums, custom install directories, and symlink targets. See the [release workflow results](https://github.com/summationai/agent-exchange/actions/runs/35471875199).
 
 The authenticated installation command documented for the private 0.5.3 preview also downloaded and installed the published archive on macOS ARM64. The installed binary reported `0.5.3`, and doctor found all four native harnesses. Installer and release changes passed autoreview, including the Windows path and shell line-ending fixes found by live CI.
 
 ## Public installation
 
-The repository is public as of September 19, 2026. [AX 0.5.4](https://github.com/rcdexta/agent-exchange/releases/tag/v0.5.4) downloads with curl and requires no GitHub account or GitHub CLI. All four native builds and the WSL 2 installation checks passed in the [release workflow](https://github.com/rcdexta/agent-exchange/actions/runs/35472738163). The installer suite now also checks explicit version selection and rejects malformed tags and unexpected latest-release redirects. Autoreview reported no actionable findings.
+The repository is public as of September 19, 2026. [AX 0.5.4](https://github.com/summationai/agent-exchange/releases/tag/v0.5.4) downloads with curl and requires no GitHub account or GitHub CLI. All four native builds and the WSL 2 installation checks passed in the [release workflow](https://github.com/summationai/agent-exchange/actions/runs/35472738163). The installer suite now also checks explicit version selection and rejects malformed tags and unexpected latest-release redirects. Autoreview reported no actionable findings.
 
 The exact public README command installed and reinstalled 0.5.4 on macOS ARM64 in a fresh home directory with no GitHub credentials. It preserved a single shell PATH entry, and the installed broker started and answered an agent-list request. The published installer matched both its release checksum and the reviewed source.
 

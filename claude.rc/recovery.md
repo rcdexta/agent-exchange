@@ -1,6 +1,6 @@
 # Messaging recovery
 
-Tracks [issue #4](https://github.com/rcdexta/agent-exchange/issues/4).
+Tracks [issue #4](https://github.com/summationai/agent-exchange/issues/4).
 
 Each MCP tool call has a ten-second budget for obtaining a broker connection,
 binding the session, confirming readiness and executing its operation. An attempt
@@ -28,5 +28,5 @@ also treated conservatively because it can report a commit failure.
 
 These changes do not restart native harnesses or replace the running AX binary.
 Pending-request discovery and sender expiry notifications are tracked separately
-in [#5](https://github.com/rcdexta/agent-exchange/issues/5) and
-[#3](https://github.com/rcdexta/agent-exchange/issues/3).
+in [#5](https://github.com/summationai/agent-exchange/issues/5) and
+[#3](https://github.com/summationai/agent-exchange/issues/3).
