@@ -3,7 +3,7 @@
 html { scroll-behavior: smooth; scroll-padding-top: 100px; }
 body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.65 var(--sans); -webkit-font-smoothing: antialiased; }
 a { color: inherit; text-underline-offset: .25em; }
-button, input, select, summary { font: inherit; }
+button, input, summary { font: inherit; }
 button, summary { cursor: pointer; }
 button { color: inherit; }
 :focus-visible { outline: 3px solid var(--orange); outline-offset: 5px; }
@@ -48,8 +48,6 @@ em { font-family: Georgia, "Times New Roman", serif; font-weight: 400; }
 .install-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .install-heading h2 { font-size: 22px; letter-spacing: -.035em; margin-bottom: 0; }
 .install-heading a { font: 11px var(--mono); white-space: nowrap; color: var(--muted); }
-.harness-picker { display: flex; align-items: center; gap: 18px; font-size: 12px; color: var(--muted); }
-.harness-picker select { flex: 1; min-width: 0; padding: 8px 11px; border: 1px solid #c8cdbe; border-radius: 4px; color: var(--ink); background: var(--paper); font-size: 14px; }
 .install-card .install-prompt { margin: 12px 0 10px; padding: 12px; font-size: 12px; line-height: 1.6; }
 .install-card .copy-button { display: block; position: static; width: 100%; height: auto; margin-top: 12px; padding: 10px 14px; background: var(--ink); color: var(--paper); border-color: var(--ink); font: 600 13px var(--sans); }
 .install-card .copy-button:hover { background: #3e4733; }
