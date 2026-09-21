@@ -2,7 +2,7 @@
 
 Give your coding agents names. Let them talk to each other.
 
-Agent Exchange (`ax`) connects Claude Code, Codex CLI, Grok Build, and OpenCode on your machine. Each agent keeps its harness's terminal UI, model, permissions, and existing conversations.
+Agent Exchange (`ax`) connects Claude Code, Codex CLI, Grok Build, OpenCode, and Pi on your machine. Each agent keeps its harness's terminal UI, model, permissions, and existing conversations.
 
 ## Install
 
@@ -18,7 +18,7 @@ You can also follow [AGENTS.md](AGENTS.md) yourself or browse the [documentation
 
 Install and sign in to your coding harnesses separately.
 
-The inbox and resource protection described below are unreleased. The installer downloads the latest published release.
+Pi support, the inbox, and resource protection described below are unreleased. The installer downloads the latest published release.
 
 ## Try it
 
@@ -59,6 +59,8 @@ Launching the same AX name with no additional arguments resumes its saved conver
 - **OpenCode:** MCP tools and a TUI plugin loaded for each launch. Supports the full TUI; pure and mini modes are unsupported.
 
 All four have completed live message exchanges on macOS, including resumed conversations. Automated checks cover release binaries and the broker across platforms. Live harness exchanges on Linux and WSL remain unverified. See [tested versions and evidence](claude.rc/verification.md).
+
+**Pi (source preview):** `ax pi -name worker` loads a native extension. It connects automatically, wakes idle sessions, and queues follow-ups during a turn. Pi keeps running if the messaging helper fails. Pi 0.86.1 has completed a live exchange with Codex, bridge and broker recovery, and resume from another repository. See [Pi setup and limits](claude.rc/pi.md).
 
 ## Add another harness
 

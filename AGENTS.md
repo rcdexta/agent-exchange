@@ -71,6 +71,8 @@ When the user requests uninstallation, remove the installed `ax` binary and any 
 
 ## Further details
 
+Pi support is available as an unreleased [source preview](https://github.com/rcdexta/agent-exchange/blob/main/claude.rc/pi.md). The published installer does not include it yet.
+
 - [Usage, permissions, and resume](https://github.com/rcdexta/agent-exchange/blob/main/claude.rc/README.md)
 - [Tested platforms and harness versions](https://github.com/rcdexta/agent-exchange/blob/main/claude.rc/verification.md)
 - [Adding a coding harness](https://github.com/rcdexta/agent-exchange/blob/main/claude.rc/adapters.md)

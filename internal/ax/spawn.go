@@ -86,6 +86,10 @@ func normalizeSpawn(req spawnRequest, parent Session) (spawnRequest, error) {
 	if harnesses[req.Host].nativeID == nil || !validName.MatchString(req.Name) {
 		return req, errors.New("choose a supported harness and a unique AX name")
 	}
+	if harnesses[req.Host].nativeLaunch {
+		// Exec would replace the dispatcher before it can record the native exit.
+		return req, fmt.Errorf("pane spawning is not supported for %s yet; launch ax %s -name %s in a terminal", req.Host, req.Host, req.Name)
+	}
 	if _, err := exec.LookPath(req.Host); err != nil {
 		return req, fmt.Errorf("install and sign in to %s first", req.Host)
 	}

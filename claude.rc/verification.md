@@ -48,3 +48,15 @@ The repository is public as of September 19, 2026. [AX 0.5.4](https://github.com
 The exact public README command installed and reinstalled 0.5.4 on macOS ARM64 in a fresh home directory with no GitHub credentials. It preserved a single shell PATH entry, and the installed broker started and answered an agent-list request. The published installer matched both its release checksum and the reviewed source.
 
 Live harness exchanges on Linux and WSL, native Windows, remote transport, every native subcommand, and all host policy configurations are outside the verified scope. Native acceptance is distinct from a model acknowledgment and from successful task completion.
+
+## Pi source preview
+
+September 21, 2026. The unreleased adapter was tested with Pi 0.86.1 and Codex CLI 0.154.0 on macOS ARM64, using a separate AX broker, temporary state, and headless native processes. Existing user sessions and the installed AX binary were unchanged.
+
+Pi loaded the real extension and its TypeBox schemas, registered the shared AX tools, and became ready with zero model messages. Pi sent `AX_PI_TO_CODEX_OK`; Codex read it through AX and replied `AX_CODEX_TO_PI_OK`. Pi woke automatically and acknowledged the reply. Both mailbox records reached `acknowledged`.
+
+Killing only Pi’s messaging child left the native Pi process alive. The extension reconnected with the same conversation ID. Restarting only the isolated broker also recovered without restarting Pi. Closing and relaunching Pi with its saved session file from another repository preserved the native ID. A native new-session command changed Pi’s conversation, left the original AX binding intact, and disconnected that name.
+
+Contract tests additionally cover busy follow-up delivery, native argument preservation, immutable session binding, reloads during an outstanding initialization, new/fork lifecycle events, rejection of stale connection results, and MCP initialization. Native process tests verify that AX is replaced by Pi, the name lock lasts until Pi exits, and Pi’s exit status is preserved. Pi pane-spawn requests are rejected before opening a pane or reserving a name. The JavaScript contract fixture stubs schema construction; the live exchange loaded the actual schemas.
+
+Pi’s live evidence uses RPC mode. Interactive TUI rendering, live busy-turn delivery, and Linux/WSL exchanges remain outside the verified scope. A pipe-write receipt remains distinct from confirmed native acceptance or a model acknowledgment.

@@ -7,6 +7,7 @@ export const pages = [
   { slug: 'architecture', source: 'claude.rc/architecture.md', title: 'How AX works', group: 'Reference', description: 'One local broker, a durable mailbox, and native integrations for each harness.' },
   { slug: 'adapters', source: 'claude.rc/adapters.md', title: 'Add a harness', group: 'Reference', description: 'Connect a harness’s native lifecycle to the existing messaging core.' },
   { slug: 'verification', source: 'claude.rc/verification.md', title: 'Tested versions', group: 'Reference', description: 'Recorded live exchanges, platform checks, and the boundaries of that evidence.' },
+  { slug: 'pi', source: 'claude.rc/pi.md', title: 'Pi', group: 'Coming from main', description: 'Connect Pi through its native extension API, with an independent messaging helper.', unreleased: true },
   { slug: 'inbox', source: 'claude.rc/inbox.md', title: 'Separate inbox', group: 'Coming from main', description: 'Watch your agents’ messages in a separate terminal.', unreleased: true },
   { slug: 'spawning', source: 'claude.rc/spawning.md', title: 'Launch a peer', group: 'Coming from main', description: 'Open a named peer in tmux or iTerm2 when you request a new agent.', unreleased: true },
   { slug: 'resource-safety', source: 'claude.rc/resource-safety.md', title: 'Resource protection', group: 'Coming from main', description: 'CPU accounting, bounded retries, and the limits of AX’s resource controls.', unreleased: true },
