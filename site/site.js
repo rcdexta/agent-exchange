@@ -9,13 +9,14 @@ document.querySelectorAll('pre').forEach(pre => {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'copy-button';
-  button.textContent = '⧉';
-  button.setAttribute('aria-label', 'Copy code');
+  const label = pre.dataset.copyLabel || '⧉';
+  button.textContent = label;
+  button.setAttribute('aria-label', pre.dataset.copyLabel || 'Copy code');
   button.title = 'Copy';
   button.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(code.textContent.trimEnd());
-      button.textContent = '✓';
+      button.textContent = pre.dataset.copyLabel ? 'Copied!' : '✓';
       button.dataset.state = 'copied';
       announce.textContent = 'Copied to clipboard.';
     } catch {
@@ -26,10 +27,23 @@ document.querySelectorAll('pre').forEach(pre => {
       selection.addRange(range);
       announce.textContent = 'Could not copy automatically. Code selected; use your copy shortcut.';
     }
-    setTimeout(() => { button.textContent = '⧉'; delete button.dataset.state; announce.textContent = ''; }, 2400);
+    setTimeout(() => { button.textContent = label; delete button.dataset.state; announce.textContent = ''; }, 2400);
   });
   pre.append(button);
 });
+
+const harnessPicker = document.querySelector('#install-harness');
+if (harnessPicker) {
+  harnessPicker.disabled = false;
+  const prompt = document.querySelector('#harness-prompt');
+  harnessPicker.addEventListener('change', () => {
+    prompt.textContent = `Read https://useax.dev/agents.md and install Agent Exchange for ${harnessPicker.value}.`;
+    const button = prompt.closest('pre').querySelector('.copy-button');
+    button.textContent = prompt.closest('pre').dataset.copyLabel;
+    delete button.dataset.state;
+    announce.textContent = '';
+  });
+}
 
 const exchange = document.querySelector('.exchange');
 const replay = document.querySelector('[data-replay]');
