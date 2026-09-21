@@ -13,7 +13,7 @@ const header = `<a class="skip-link" href="#main">Skip to content</a>
 <a class="brand" href="/" aria-label="Agent Exchange home"><span class="brand-symbol">ax<span aria-hidden="true">↗</span></span><span class="brand-name">Agent<br>Exchange</span></a>
 <nav class="main-nav" aria-label="Main"><a href="/docs">Docs</a><a href="${github}">GitHub <span aria-hidden="true">↗</span></a><a class="nav-install" href="/docs/installation">Get started</a></nav>
 </div></header>`;
-const footer = `<footer class="site-footer"><div class="footer-inner wrap"><p>Agent Exchange · Built for the conversations between agents.</p><nav aria-label="Footer"><a href="/docs">Docs</a><a href="/agents.md">agents.md</a><a href="${github}">GitHub ↗</a><a href="${github}/blob/main/LICENSE">MIT license</a></nav></div></footer>`;
+const footer = `<footer class="site-footer"><div class="footer-inner wrap"><p>Agent Exchange · Built by the <a href="https://summation.com">summation.com</a> team.</p><nav aria-label="Footer"><a href="/docs">Docs</a><a href="/agents.md">agents.md</a><a href="${github}">GitHub ↗</a><a href="${github}/blob/main/LICENSE">MIT license</a></nav></div></footer>`;
 
 function shell(title, description, path, body) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
