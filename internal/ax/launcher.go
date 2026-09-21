@@ -19,7 +19,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const Version = "0.6.0"
+const Version = "0.6.1"
 
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'" }
 

@@ -33,7 +33,7 @@ main() {
   case "$tag" in
     *[!A-Za-z0-9._-]*) echo 'AX_VERSION contains invalid release tag characters.' >&2; exit 1 ;;
     v[0-9]*) ;;
-    *) echo 'AX_VERSION must be a release tag such as v0.6.0.' >&2; exit 1 ;;
+    *) echo 'AX_VERSION must be a release tag such as v0.6.1.' >&2; exit 1 ;;
   esac
   asset="ax_${platform}_${arch}.tar.gz"
   stage=$(mktemp -d)

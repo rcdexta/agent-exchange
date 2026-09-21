@@ -61,7 +61,7 @@ Installing a new binary does not replace a running broker or bridge. New feature
 3. Stop only that verified broker PID with `kill -TERM BROKER_PID` and wait for it to exit before proceeding. Do not signal a launcher, bridge, harness, or process group. If its identity cannot be verified, leave it running and report that the broker update is still pending.
 4. Run `ax agents` to start the broker from the installed binary, then relaunch the saved AX names.
 
-Saved conversations and mail are preserved. Version 0.6.0 upgrades the mailbox to schema 3; an older broker cannot open that upgraded mailbox. Do not downgrade the broker against it.
+Saved conversations and mail are preserved. Version 0.6.1 upgrades the mailbox to schema 3; an older broker cannot open that upgraded mailbox. Do not downgrade the broker against it.
 
 ## Optional installation settings
 
@@ -69,7 +69,7 @@ Download the installer first to inspect it or select a release:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/rcdexta/agent-exchange/main/install.sh -o install-ax.sh
-AX_VERSION=v0.6.0 sh install-ax.sh
+AX_VERSION=v0.6.1 sh install-ax.sh
 ```
 
 `AX_INSTALL_DIR` chooses another binary directory. `AX_NO_MODIFY_PATH=1` disables changes to shell configuration. Set these variables on the `sh install-ax.sh` invocation. With a custom directory, add that directory to PATH before running AX.
