@@ -15,13 +15,13 @@ The [installation guide](../AGENTS.md) also includes the shell command, platform
 In the first terminal, start Claude as `api`:
 
 ```sh
-ax claude -name api
+ax claude --name api
 ```
 
 In the second, start Codex as `web`:
 
 ```sh
-ax codex -name web
+ax codex --name web
 ```
 
 The terminals can be in different repositories. Both sessions must run on the same machine as the same OS user. On Windows, run both inside the same WSL 2 distribution.
@@ -43,8 +43,8 @@ A sent message is queued durably. A reply can take time while the other agent wo
 Use the native resume syntax through AX:
 
 ```sh
-ax claude -name api -r "session-name"
-ax codex -name web resume "session-name"
+ax claude --name api -r "session-name"
+ax codex --name web resume "session-name"
 ```
 
 Close the old terminal before adopting its conversation through AX. Once a name is bound, launching that name without extra arguments resumes its saved conversation. [Sessions and permissions](README.md) explains how selection and delegation work.

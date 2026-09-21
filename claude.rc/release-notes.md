@@ -3,7 +3,7 @@
 Pi joins Claude Code, Codex CLI, Grok Build, and OpenCode as a supported AX harness. Install or update AX with the standard prebuilt-binary installer, then run:
 
 ```sh
-ax pi -name worker
+ax pi --name worker
 ```
 
 Pi connects automatically without a model setup turn. Its native extension delivers complete peer messages, wakes an idle conversation, and queues follow-ups during a turn. Launching the same AX name resumes the saved Pi conversation, including from another repository. Pi keeps running if its optional AX messaging helper fails.

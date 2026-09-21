@@ -12,7 +12,7 @@ native Channel  app server   native leader   TUI plugin
                SQLite mailbox
 ```
 
-`ax HARNESS -name NAME` enrolls a named endpoint and launches the ordinary harness. The native harness selects or resumes its conversation. AX binds that native ID to the name, loads six messaging tools, and establishes readiness. Names are local to the OS user and work across repositories.
+`ax HARNESS --name NAME` enrolls a named endpoint and launches the ordinary harness. The native harness selects or resumes its conversation. AX binds that native ID to the name, loads six messaging tools, and establishes readiness. Names are local to the OS user and work across repositories.
 
 The broker validates the sender and target, stores the message transactionally, and offers it to the recipient's connected bridge. Claude receives an authenticated Channel event containing the message. Codex, Grok, and OpenCode receive a fixed wake instruction with a generated message ID, then fetch the body through MCP. Arbitrary peer text does not enter their user-prompt APIs.
 

@@ -109,7 +109,9 @@ func TestSpawnChecksNamesArgumentsAndTreeBounds(t *testing.T) {
 	open := func(context.Context, terminalContext, string, string, string) (string, error) { return "%8", nil }
 	for _, req := range []spawnRequest{
 		{Host: "unknown", Name: "worker"}, {Host: "claude", Name: "../escape"},
-		{Host: "claude", Name: "worker", Args: []string{"-name", "hijack"}},
+		{Host: "claude", Name: "worker", Args: []string{"--name", "hijack"}},
+		{Host: "claude", Name: "worker", Args: []string{"-n", "hijack"}},
+		{Host: "claude", Name: "worker", Args: []string{"--name=hijack"}},
 		{Host: "claude", Name: "worker", Args: []string{"bad\x00arg"}},
 		{Host: "claude", Name: "worker", CWD: "relative"},
 	} {
@@ -130,7 +132,7 @@ func TestSpawnChecksNamesArgumentsAndTreeBounds(t *testing.T) {
 	if _, err := spawnAgent(context.Background(), dir, parent, spawnRequest{Host: "claude", Name: "deep"}, open); err == nil {
 		t.Fatal("nested launch depth not enforced")
 	}
-	if err := Launch(context.Background(), dir, "claude", []string{"-name", "workera"}); err == nil {
+	if err := Launch(context.Background(), dir, "claude", []string{"--name", "workera"}); err == nil {
 		t.Fatal("normal launch stole a pending pane reservation")
 	}
 }
@@ -244,7 +246,7 @@ func TestSpawnCLISharesTerminalBudgetAndHonorsParentDepth(t *testing.T) {
 		t.Fatal(err)
 	}
 	args := func(i int) []string {
-		return []string{"claude", "-name", fmt.Sprintf("cli%d", i), "-cwd", parent.Workspace}
+		return []string{"claude", "--name", fmt.Sprintf("cli%d", i), "--cwd", parent.Workspace}
 	}
 	for i := range maxSpawnTree {
 		if _, err := spawnCLI(context.Background(), dir, args(i)); err != nil {
@@ -253,6 +255,17 @@ func TestSpawnCLISharesTerminalBudgetAndHonorsParentDepth(t *testing.T) {
 	}
 	if _, err := spawnCLI(context.Background(), dir, args(maxSpawnTree)); err == nil {
 		t.Fatal("each CLI call got a new tree budget")
+	}
+	// The removed spellings get an error that names their replacement.
+	for _, legacy := range [][]string{
+		{"claude", "--name", "x", "-cwd", parent.Workspace},
+		{"claude", "--name", "x", "-cwd=" + parent.Workspace},
+		{"claude", "-name", "x", "--cwd", parent.Workspace},
+	} {
+		_, err := spawnCLI(context.Background(), dir, legacy)
+		if err == nil || !strings.Contains(err.Error(), "no longer the AX") {
+			t.Fatalf("%q: %v", legacy, err)
+		}
 	}
 	if _, err := spawnCLI(context.Background(), dir, args(0)); err != nil {
 		t.Fatalf("retry consumed another slot: %v", err)

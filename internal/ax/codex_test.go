@@ -101,7 +101,7 @@ func TestCodexBindsBeforeFirstTurnThroughNativeAPI(t *testing.T) {
 	}
 	native = uuid()
 	err = bindCodex(context.Background(), conn, dir, file)
-	if err == nil || !strings.Contains(err.Error(), "ax codex -name automatic") || !strings.Contains(err.Error(), saved.Native) || !strings.Contains(err.Error(), native) {
+	if err == nil || !strings.Contains(err.Error(), "ax codex --name automatic") || !strings.Contains(err.Error(), saved.Native) || !strings.Contains(err.Error(), native) {
 		t.Fatalf("missing mismatch recovery: %v", err)
 	}
 	after, err := loadSession(file)

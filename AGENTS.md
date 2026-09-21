@@ -37,17 +37,17 @@ Report the installed version and the harnesses found by doctor. Missing harnesse
 Open two interactive terminals, in any repositories, and launch one session in each:
 
 ```sh
-ax claude -name api
-ax codex -name web
+ax claude --name api
+ax codex --name web
 ```
 
 Ask Codex: **“Ask api whether the schema is ready.”** Both agents connect automatically. Names work across repositories for the same OS user.
 
-Other supported harnesses join with `ax grok -name worker`, `ax opencode -name editor`, or `ax pi -name worker`. AX consumes the name option and passes other arguments through to the native harness. Use the native resume syntax to adopt an existing conversation:
+Other supported harnesses join with `ax grok --name worker`, `ax opencode --name editor`, or `ax pi --name worker`. AX consumes the name option and passes other arguments through to the native harness. Use the native resume syntax to adopt an existing conversation:
 
 ```sh
-ax claude -name api -r "session-name"
-ax codex -name web resume "session-name"
+ax claude --name api -r "session-name"
+ax codex --name web resume "session-name"
 ```
 
 Launching the same AX name without additional arguments resumes its saved conversation. Existing sessions keep running during an AX update; relaunch them to use the new binary. Saved conversations and AX mailbox state are preserved.
