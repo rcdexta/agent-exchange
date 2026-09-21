@@ -32,19 +32,6 @@ document.querySelectorAll('pre').forEach(pre => {
   pre.append(button);
 });
 
-const harnessPicker = document.querySelector('#install-harness');
-if (harnessPicker) {
-  harnessPicker.disabled = false;
-  const prompt = document.querySelector('#harness-prompt');
-  harnessPicker.addEventListener('change', () => {
-    prompt.textContent = `Read https://useax.dev/agents.md and install Agent Exchange for ${harnessPicker.value}.`;
-    const button = prompt.closest('pre').querySelector('.copy-button');
-    button.textContent = prompt.closest('pre').dataset.copyLabel;
-    delete button.dataset.state;
-    announce.textContent = '';
-  });
-}
-
 const exchange = document.querySelector('.exchange');
 const replay = document.querySelector('[data-replay]');
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
