@@ -24,6 +24,8 @@ OpenCode's embedded JavaScript plugin demonstrates that path. Keep its long-live
 
 The model-facing tools are `list_agents`, `send_message`, `reply`, `get_message`, `ack_message`, and `delivery_status`. Reuse `ax bridge`; it filters model-supplied arguments and prevents forged identity, permissions, receipts, and policy changes.
 
+The Pi adapter uses a different lifetime boundary: AX replaces itself with the native CLI, and the extension owns an optional `ax bridge` child over standard input and output. The bridge still connects to the shared Unix-socket broker. Full peer bodies arrive as Pi custom messages, and `channel_written` records only a pipe write. A model reply or acknowledgment is separate proof of receipt. Messaging failures must leave the native CLI running. See [Pi setup and verification](pi.md).
+
 Prove these behaviors before enabling an adapter: fresh launch and native resume, automatic readiness, unchanged prompts and settings, two-way delivery with another harness, native permission preservation, busy-session delivery, immutable identity, disconnect cleanup, and ambiguous handoff handling. Include a protocol-level test that rejects a false acceptance signal. Record the exact native version and live evidence in the verification document.
 
 ## Contribution workflow

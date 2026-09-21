@@ -242,6 +242,10 @@ func (b *bridge) bootstrap() {
 	b.session = s
 	b.bootstrapped = true
 	b.mu.Unlock()
+	if s.Host == "pi" {
+		// The native extension activates messaging itself without a model turn.
+		return
+	}
 	// Native adapters bind the selected conversation after the host's own API
 	// confirms it. Tool discovery is sufficient for these hosts; a resumed model
 	// may remember an old setup turn and choose not to repeat its discovery call.
@@ -291,13 +295,13 @@ func (b *bridge) deliver(c *client, m Message) {
 	b.mu.Unlock()
 	receipt := "delivery_uncertain"
 	text := wakeText(s.Host, m.ID)
-	if s.Host == "claude" {
+	if s.Host == "claude" || s.Host == "pi" {
 		// The native channel identifies peer content separately from user input.
 		// JSON escaping keeps peer markup from closing that channel's wrapper.
-		text = "AX peer message. " + delegation + " The complete message is below; no fetch needed. Reply through mcp__ax__reply if needed (this also acknowledges), otherwise call mcp__ax__ack_message.\n" + string(raw(object{"message_id": m.ID, "sender": m.Sender.Name, "harness": m.Sender.Host, "text": m.Text, "in_reply_to": m.Parent}))
+		text = "AX peer message. " + delegation + " The complete message is below; no fetch needed. Reply through " + toolName(s.Host, "reply") + " if needed (this also acknowledges), otherwise call " + toolName(s.Host, "ack_message") + ".\n" + string(raw(object{"message_id": m.ID, "sender": m.Sender.Name, "harness": m.Sender.Host, "text": m.Text, "in_reply_to": m.Parent}))
 	}
 	if b.notify(s, text, object{"message_id": m.ID, "sender": m.Sender.Name, "harness": m.Sender.Host}) == nil {
-		if s.Host == "claude" {
+		if s.Host == "claude" || s.Host == "pi" {
 			receipt = "channel_written"
 		} else {
 			receipt = "wake_accepted"
@@ -309,6 +313,9 @@ func (b *bridge) deliver(c *client, m Message) {
 }
 
 func (b *bridge) notify(s Session, text string, meta object) error {
+	if s.Host == "pi" {
+		return b.emit(packet{Method: "notifications/ax/message", Params: raw(object{"content": text, "meta": meta, "native_session_id": s.Native})})
+	}
 	if s.Host == "claude" {
 		return b.emit(packet{Method: "notifications/claude/channel", Params: raw(object{"content": text, "meta": meta})})
 	}
