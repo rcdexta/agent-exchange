@@ -18,6 +18,11 @@ async function until(predicate) {
   for (let i = 0; i < 120; i++) { if (predicate()) return; await delay(25); }
   throw new Error('condition timed out: ' + statuses.join(', '));
 }
+function startSession(reason) {
+  // A previous session's connected status does not prove this one is ready.
+  statuses.length = 0;
+  events.get('session_start')({ reason }, ctx);
+}
 try {
   const bridge = join(dir, 'bridge.mjs'), session = join(dir, 'session.json');
   writeFileSync(bridge, readFileSync(new URL('./pi_bridge.mjs', import.meta.url)));
@@ -37,7 +42,7 @@ try {
   assert.equal(tools.size, JSON.parse(process.env.AX_TEST_PI_TOOLS).length);
   assert.equal(tools.get("ax_spawn_agent").parameters.properties.args.type, "array");
   assert.equal(events.get('before_agent_start')({ systemPrompt: 'Native prompt' }).systemPrompt, 'Native prompt\n\nScoped AX policy');
-  events.get('session_start')({}, ctx);
+  startSession();
   await until(() => statuses.at(-1) === 'AX connected');
   assert.equal(messages.length, 0, 'connection spent a model turn');
   const discover = async () => JSON.parse((await tools.get('ax_list_agents').execute('call', {})).content[0].text);
@@ -72,28 +77,26 @@ try {
     native = '98765432-1234-4234-a234-123456789012';
     await assert.rejects(tools.get('ax_list_agents').execute('call', {}), /reconnecting/);
     events.get('session_shutdown')();
-    events.get('session_start')({ reason }, ctx);
-    await until(() => statuses.at(-1).includes('another conversation'));
+    startSession(reason);
+    await until(() => statuses.at(-1)?.includes('another conversation'));
     await assert.rejects(tools.get('ax_list_agents').execute('call', {}), /reconnecting/);
     assert.equal(JSON.parse(readFileSync(session)).native_session_id, original);
     native = original;
     events.get('session_shutdown')();
-    events.get('session_start')({ reason: 'resume' }, ctx);
+    startSession('resume');
     await until(() => statuses.at(-1) === 'AX connected');
   }
   // Replace a session while initialize is outstanding. Its late rejection must
   // neither disconnect the replacement nor run more calls on that connection.
   writeFileSync(session + '.delay', 'yes');
   const before = readFileSync(session + '.calls', 'utf8').trim().split('\n').length;
-  events.get('session_start')({ reason: 'reload' }, ctx);
+  startSession('reload');
   await until(() => readFileSync(session + '.calls', 'utf8').trim().split('\n').length > before);
   const stalePID = JSON.parse(readFileSync(session + '.calls', 'utf8').trim().split('\n').at(-1)).pid;
   events.get('session_shutdown')();
-  events.get('session_start')({ reason: 'reload' }, ctx);
+  startSession('reload');
+  await until(() => statuses.at(-1) === 'AX connected');
   rmSync(session + '.delay');
-  await until(asyncReady);
-  function asyncReady() { return statuses.at(-1) === 'AX connected'; }
-  await delay(300);
   assert.notEqual((await discover()).pid, stalePID);
   assert.deepEqual(readFileSync(session + '.calls', 'utf8').trim().split('\n').map(JSON.parse)
     .filter(call => call.pid === stalePID).map(call => call.method), ['initialize']);

@@ -18,7 +18,7 @@ if (process.argv[2] === 'hook') {
   for await (const line of lines) {
     const request = JSON.parse(line);
     appendFileSync(sessionFile + '.calls', JSON.stringify({pid:process.pid,method:request.method}) + '\n');
-    if (request.method === 'initialize' && existsSync(sessionFile + '.delay')) await new Promise(r => setTimeout(r, 250));
+    if (request.method === 'initialize' && existsSync(sessionFile + '.delay')) await new Promise(r => setTimeout(r, 500));
     if (request.method === 'notifications/initialized') {
       initialized = true;
       appendFileSync(sessionFile + '.initialized', 'yes\n');

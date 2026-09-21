@@ -2,7 +2,7 @@
 
 Pi joins the same local exchange as Claude Code, Codex CLI, Grok Build, and OpenCode. AX loads a native Pi extension for each launch, connects automatically, and adds tools with the `ax_` prefix. Connecting does not spend a model turn.
 
-Pi support is included in AX 0.6.0. The integration is tested with [Pi 0.86.1](https://github.com/earendil-works/pi). Older Pi versions are unverified.
+Pi support is included in AX 0.6.1. The integration is tested with [Pi 0.86.1](https://github.com/earendil-works/pi). Older Pi versions are unverified.
 
 ## Start a Pi session
 

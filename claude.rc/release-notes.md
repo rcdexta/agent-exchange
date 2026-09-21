@@ -1,4 +1,4 @@
-# Agent Exchange 0.6.0
+# Agent Exchange 0.6.1
 
 Pi joins Claude Code, Codex CLI, Grok Build, and OpenCode as a supported AX harness. Install or update AX with the standard prebuilt-binary installer, then run:
 
@@ -7,6 +7,8 @@ ax pi -name worker
 ```
 
 Pi connects automatically without a model setup turn. Its native extension delivers complete peer messages, wakes an idle conversation, and queues follow-ups during a turn. Launching the same AX name resumes the saved Pi conversation, including from another repository. Pi keeps running if its optional AX messaging helper fails.
+
+Version 0.6.0 was tagged but not published because the Pi contract fixture read a stale connection status on the Intel macOS runner. Version 0.6.1 corrects that test synchronization; the adapter runtime is unchanged.
 
 ## Also included
 
@@ -19,7 +21,7 @@ Pi connects automatically without a model setup turn. Its native extension deliv
 
 Follow [AGENTS.md](https://useax.dev/agents.md) for macOS, Linux, or Windows through WSL 2. Archives cover ARM64 and x86_64; Linux binaries are statically linked. No Go, Make, or GitHub account is needed to install AX. Install and sign in to each coding harness separately.
 
-Existing processes keep their old code after installation. Finish active work, close AX-launched sessions normally, replace only the verified broker process, and relaunch saved names as described in the [update guide](https://useax.dev/docs/installation#updating-running-sessions). Version 0.6.0 upgrades the mailbox to schema 3; do not run an older broker against that upgraded mailbox.
+Existing processes keep their old code after installation. Finish active work, close AX-launched sessions normally, replace only the verified broker process, and relaunch saved names as described in the [update guide](https://useax.dev/docs/installation#updating-running-sessions). Version 0.6.1 upgrades the mailbox to schema 3; do not run an older broker against that upgraded mailbox.
 
 ## Verification and limits
 
