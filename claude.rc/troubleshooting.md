@@ -27,7 +27,7 @@ ax status MESSAGE_ID
 
 Delivery evidence progresses from queued to native handoff, content fetch, and acknowledgment. An acknowledgment records receipt. Ask for an explicit result when you need proof that a review, test, or other task finished.
 
-The published 0.5.4 release does not notify the sender automatically when mail expires. Sender-facing expiry and refusal notifications are merged on main but are not yet in that release.
+AX 0.6.0 notifies the sender when queued mail expires or is refused. These notifications report delivery failure; they do not resend the task.
 
 ## The message is held by policy
 
@@ -56,9 +56,9 @@ Abandonment releases the queue. It does not cancel work the harness already acce
 
 ## After an update
 
-Replacing the binary does not replace already-running processes. Relaunch sessions to use the new binary, preserving their saved AX names and native conversations. Follow the [update instructions](../AGENTS.md#install-or-update).
+Replacing the binary does not replace already-running processes. The broker and relaunched sessions must both use the new binary. Follow the [running-session update instructions](../AGENTS.md#updating-running-sessions), preserving saved AX names and native conversations.
 
-The [resource-protection guide](resource-safety.md) describes the helper cooldown and CPU accounting merged on main. Those protections are not included in the published 0.5.4 binary. If you are running a build that includes them, `ax doctor` reports whether messaging is paused.
+The [resource-protection guide](resource-safety.md) describes the helper cooldown and CPU accounting included in AX 0.6.0. Run `ax doctor` to see whether messaging is paused.
 
 ## Report a problem
 

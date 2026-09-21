@@ -7,8 +7,9 @@ Install the native harnesses you want to use and sign in normally. [Install the 
 ```sh
 ax claude -name api
 ax codex -name web
-ax grok -name worker
+ax grok -name reviewer
 ax opencode -name editor
+ax pi -name worker
 ```
 
 Names are shared across repositories on your machine, for your OS user. Choose a unique name for each conversation. Ask an agent to message a name; it uses AX tools, ends its turn, and wakes automatically for replies.
@@ -18,8 +19,9 @@ AX consumes the name option and forwards other arguments to the harness. Native 
 ```sh
 ax claude -name api -r "session-name"
 ax codex -name web resume "session-name"
-ax grok -name worker -r "session-name"
+ax grok -name reviewer -r "session-name"
 ax opencode -name editor -s SESSION_ID
+ax pi -name worker -r
 ```
 
 Launching the same AX name with no native arguments resumes its saved conversation. Supplying native arguments leaves selection to the native harness. AX rejects a different conversation under an already bound name. Close the old terminal before adopting its conversation through AX.
@@ -28,7 +30,7 @@ Models, native prompts, and native options are forwarded. AX adds configuration 
 
 ## Launch a peer in another pane
 
-On main, the unreleased `spawn_agent` tool and `ax spawn` command can open a named peer in the caller's tmux or iTerm2 session. Agents may use this only when you explicitly request a new agent. A task assignment or an opportunity to parallelize does not authorize a launch. See [pane launches and their limits](spawning.md).
+The `spawn_agent` tool and `ax spawn` command can open a named peer in the caller's tmux or iTerm2 session. Agents may use this only when you explicitly request a new agent. A task assignment or an opportunity to parallelize does not authorize a launch. See [pane launches and their limits](spawning.md).
 
 ## Permissions and delegation
 
@@ -55,12 +57,13 @@ FIFO orders native handoffs. Once a host accepts a message, later mail can proce
 
 State lives in a private `.ax` directory under your home directory. `AX_HOME` selects another private directory, useful for isolated tests. Terminal message records are retained for seven days. Unresolved records remain available for inspection.
 
-## Preview boundaries
+## Integration limits
 
 - Claude uses an experimental native Channel and asks for development Channel confirmation at launch. Organization policies may disable Channels.
 - Codex uses its native app server on a private socket. AX owns that local backend connection.
 - Grok uses its native leader on a private socket. Native leader-mode limitations apply; standalone-only flags and sandbox modes require further adapter work.
 - OpenCode uses its full TUI plugin API. Its pure and mini modes do not load this adapter. An existing `OPENCODE_TUI_CONFIG` override must currently contain JSON.
-- Live harness verification targets macOS. Release binaries and the shared broker build and run tests on macOS and Linux. Windows users run AX and their harnesses inside WSL 2. Native Windows and remote agent transport are outside this preview.
+- Pi uses a native extension and keeps its terminal independent of the messaging helper. Pi pane spawning is not supported yet. See [Pi setup and limits](pi.md).
+- Live harness verification targets macOS. Release binaries and the shared broker build and run tests on macOS and Linux. Windows users run AX and their harnesses inside WSL 2. Native Windows and remote agent transport are not supported.
 
 Public binaries are available from [GitHub Releases](https://github.com/rcdexta/agent-exchange/releases/latest). See the [verification record](verification.md) for tested harness versions and current evidence.

@@ -49,10 +49,12 @@ for path, page in pages.items():
         checked += 1
 
 assert (DIST / 'agents.md').read_bytes() == (ROOT.parent / 'AGENTS.md').read_bytes()
-for slug in ('inbox', 'resource-safety', 'spawning'):
-    assert '<strong>Unreleased.</strong>' in (DIST / f'docs/{slug}.html').read_text()
+for slug in ('pi', 'inbox', 'resource-safety', 'spawning'):
+    assert '<strong>Unreleased.</strong>' not in (DIST / f'docs/{slug}.html').read_text()
 assert 'text/markdown' in (DIST / '_headers').read_text()
 assert '/AGENTS.md /agents.md 301' in (DIST / '_redirects').read_text()
 assert 'Page not found' in (DIST / '404.html').read_text()
-assert '/docs' in (DIST / 'index.html').read_text()
+assert '/docs/pi' in (DIST / 'index.html').read_text()
+assert 'source preview' not in (DIST / 'index.html').read_text()
+assert 'ax pi -name worker' in (DIST / 'docs/pi.html').read_text()
 print(json.dumps({'html_pages': len(pages), 'local_links_checked': checked, 'canonical_guide': 'identical'}))

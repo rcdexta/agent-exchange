@@ -19,7 +19,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const Version = "0.5.4"
+const Version = "0.6.0"
 
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'" }
 
@@ -342,14 +342,14 @@ func Main(args []string) error {
 
   ax claude -name api
   ax codex -name web
-  ax grok -name worker
+  ax grok -name reviewer
   ax opencode -name editor
   ax pi -name worker
 
 AX owns the name option. Other arguments go to the native harness.
   ax claude -name api -r "session-name"
   ax codex -name web resume "session-name"
-  ax grok -name worker -r "session-name"
+  ax grok -name reviewer -r "session-name"
   ax opencode -name editor -s SESSION_ID
 
 Ask either agent to message another by name.

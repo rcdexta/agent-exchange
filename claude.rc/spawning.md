@@ -1,6 +1,6 @@
 # Launch a peer in another pane
 
-Pane launching is unreleased and is not included in the published 0.5.4 binary.
+Pane launching is included in AX 0.6.0 for Claude Code, Codex CLI, Grok Build, and OpenCode. Start Pi directly with `ax pi -name NAME`; Pi pane spawning is not supported yet.
 
 Ask an AX agent: **“Launch a Codex agent named reviewer in a new pane, and ask it to review this change.”** The agent uses `spawn_agent`, then sends the task through the ordinary AX mailbox. The new conversation appears beside yours and keeps the name `reviewer` for replies.
 

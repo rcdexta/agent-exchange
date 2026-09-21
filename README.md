@@ -18,7 +18,7 @@ You can also follow [AGENTS.md](AGENTS.md) yourself or browse the [documentation
 
 Install and sign in to your coding harnesses separately.
 
-Pi support, the inbox, and resource protection described below are unreleased. The installer downloads the latest published release.
+AX 0.6.0 includes all five harnesses, the inbox, pane launching, and resource protection. The installer downloads the latest published release.
 
 ## Try it
 
@@ -33,11 +33,12 @@ Ask Codex: **“Ask api whether the schema is ready.”** Claude receives the re
 
 Open `ax inbox` in a third terminal or a terminal split to watch messages separately. Use `ax inbox api` to filter messages to and from one agent. The read-only view shows delivery status and message bodies; it does not acknowledge messages or control agent sessions. [Inbox controls and behavior](claude.rc/inbox.md).
 
-Grok and OpenCode join the same exchange:
+Grok, OpenCode, and Pi join the same exchange:
 
 ```sh
-ax grok -name worker
+ax grok -name reviewer
 ax opencode -name editor
+ax pi -name worker
 ```
 
 ## Resume a conversation
@@ -57,10 +58,9 @@ Launching the same AX name with no additional arguments resumes its saved conver
 - **Codex CLI:** MCP tools and a private native app server. Requires native queue support.
 - **Grok Build:** MCP tools and a private native leader. Native leader-mode limitations apply.
 - **OpenCode:** MCP tools and a TUI plugin loaded for each launch. Supports the full TUI; pure and mini modes are unsupported.
+- **Pi:** Native extension with automatic connection, idle wake, and busy follow-ups. Pi keeps running if its optional messaging helper fails. See [Pi setup and limits](claude.rc/pi.md).
 
-All four have completed live message exchanges on macOS, including resumed conversations. Automated checks cover release binaries and the broker across platforms. Live harness exchanges on Linux and WSL remain unverified. See [tested versions and evidence](claude.rc/verification.md).
-
-**Pi (source preview):** `ax pi -name worker` loads a native extension. It connects automatically, wakes idle sessions, and queues follow-ups during a turn. Pi keeps running if the messaging helper fails. Pi 0.86.1 has completed a live exchange with Codex, bridge and broker recovery, and resume from another repository. See [Pi setup and limits](claude.rc/pi.md).
+All five have completed live message exchanges on macOS, including resumed conversations. Automated checks cover release binaries and the broker across platforms. Live harness exchanges on Linux and WSL remain unverified. See [tested versions and evidence](claude.rc/verification.md).
 
 ## Add another harness
 

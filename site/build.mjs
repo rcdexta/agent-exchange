@@ -70,7 +70,7 @@ for (const page of pages) {
     token.attrSet('id', id);
     if (token.tag === 'h2') headings.push({ id, title });
   });
-  const notice = page.unreleased ? '<aside class="doc-notice"><p><strong>Unreleased.</strong> This feature is on main but is not included in the published 0.5.4 binary. The installer downloads the latest published release.</p></aside>' : '';
+  const notice = page.unreleased ? '<aside class="doc-notice"><p><strong>Unreleased.</strong> This feature is on main but is not included in the latest published binary. The installer downloads the latest published release.</p></aside>' : '';
   const body = `<div class="docs-layout wrap">${navigation(page)}<main id="main" class="doc-article"><header><p class="eyebrow">Documentation / ${page.group}</p><h1>${escape(page.title)}</h1><p class="doc-description">${escape(page.description)}</p></header>${notice}<div class="doc-content">${md.renderer.render(tokens, md.options, env)}</div><footer class="doc-bottom"><a href="${github}/blob/main/${page.source}">View source on GitHub ↗</a><a href="${github}/issues">Something unclear? Open an issue ↗</a></footer></main><nav class="doc-toc" aria-label="On this page"><strong>On this page</strong>${headings.map(h => `<a href="#${h.id}">${escape(h.title)}</a>`).join('')}</nav></div>`;
   await writeFile(new URL(page.slug ? `docs/${page.slug}.html` : 'docs/index.html', output), shell(page.title, page.description, docPath(page), body));
 }
