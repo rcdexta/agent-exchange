@@ -84,6 +84,33 @@ func TestLauncherForwardsAXNameToNativeDisplayName(t *testing.T) {
 	}
 }
 
+// The probe is an optional lookup for a cosmetic option. A harness that stalls
+// on --help must not stall the launch, so the probe gives up and omits the name.
+func TestLauncherNameProbeCannotStallLaunch(t *testing.T) {
+	dir := startTestServer(t)
+	bin := testDir(t)
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	out := filepath.Join(bin, "claude.args")
+	script := "#!/bin/sh\nif [ \"$1\" = --help ]; then sleep 600; fi\nprintf '%s\\0' \"$@\" > " + shellQuote(out) + "\n"
+	if err := os.WriteFile(filepath.Join(bin, "claude"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	if err := Launch(context.Background(), dir, "claude", []string{"--name", "api"}); err != nil {
+		t.Fatal(err)
+	}
+	if waited := time.Since(start); waited > flagProbeTimeout+10*time.Second {
+		t.Fatalf("probe stalled the launch for %s", waited)
+	}
+	data, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(strings.Split(string(data), "\x00"), "--name") {
+		t.Fatal("forwarded a name the harness never advertised")
+	}
+}
+
 func startTestServer(t *testing.T) string {
 	t.Helper()
 	dir, err := os.MkdirTemp("/tmp", "ax-launch-")

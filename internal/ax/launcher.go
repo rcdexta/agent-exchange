@@ -59,10 +59,19 @@ func launchArgs(args []string) (string, []string, error) {
 	return name, native, nil
 }
 
-// An older harness release may not have the option yet. Unreadable help output
-// means AX leaves the native name alone rather than failing the launch on it.
-func advertisesFlag(bin, flag string) bool {
-	help, err := exec.Command(bin, "--help").Output()
+const flagProbeTimeout = 3 * time.Second
+
+// An older harness release may not have the option yet. Help output that is
+// missing, unreadable, or slow leaves the native name alone; the probe must not
+// be able to fail or stall a launch that would otherwise succeed.
+func advertisesFlag(ctx context.Context, bin, flag string) bool {
+	ctx, cancel := context.WithTimeout(ctx, flagProbeTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, bin, "--help")
+	// Cancelling signals the harness alone. Without a wait delay, a grandchild
+	// holding the output pipe keeps Output blocked past the timeout.
+	cmd.WaitDelay = time.Second
+	help, err := cmd.Output()
 	if err != nil {
 		return false
 	}
@@ -247,7 +256,7 @@ func launch(ctx context.Context, dir, host string, args []string, spawnToken str
 	}
 	// Show the AX name in the harness's own session UI. launchArgs already removed
 	// every user-supplied copy of the option, so this cannot pass it twice.
-	if flag := harnesses[host].nameFlag; flag != "" && advertisesFlag(nativeBin, flag) {
+	if flag := harnesses[host].nameFlag; flag != "" && advertisesFlag(ctx, nativeBin, flag) {
 		argv = append(argv, flag, name)
 	}
 	// Keep injected Codex configuration in the subcommand's option scope, where
