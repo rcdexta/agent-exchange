@@ -15,7 +15,7 @@ AX uses prebuilt binaries. Go, Make, Node, a C compiler, a GitHub account, and G
 Run as the current user:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/rcdexta/agent-exchange/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/summationai/agent-exchange/main/install.sh | sh
 ```
 
 The installer selects the latest release for the OS and CPU, verifies its SHA-256 checksum and version, and atomically installs `ax` into `$HOME/.local/bin`. Failed downloads and checksum checks preserve the previous binary. If necessary, the installer adds that directory to the user's shell configuration.
@@ -68,13 +68,13 @@ Saved conversations and mail are preserved. Version 0.6.1 upgrades the mailbox t
 Download the installer first to inspect it or select a release:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/rcdexta/agent-exchange/main/install.sh -o install-ax.sh
+curl -fsSL https://raw.githubusercontent.com/summationai/agent-exchange/main/install.sh -o install-ax.sh
 AX_VERSION=v0.6.1 sh install-ax.sh
 ```
 
 `AX_INSTALL_DIR` chooses another binary directory. `AX_NO_MODIFY_PATH=1` disables changes to shell configuration. Set these variables on the `sh install-ax.sh` invocation. With a custom directory, add that directory to PATH before running AX.
 
-Archives, checksums, and the MIT license are also available from [GitHub Releases](https://github.com/rcdexta/agent-exchange/releases/latest).
+Archives, checksums, and the MIT license are also available from [GitHub Releases](https://github.com/summationai/agent-exchange/releases/latest).
 
 ## Remove AX
 
@@ -82,7 +82,7 @@ When the user requests uninstallation, remove the installed `ax` binary and any 
 
 ## Further details
 
-- [Pi setup and resume](https://github.com/rcdexta/agent-exchange/blob/main/claude.rc/pi.md)
-- [Usage, permissions, and resume](https://github.com/rcdexta/agent-exchange/blob/main/claude.rc/README.md)
-- [Tested platforms and harness versions](https://github.com/rcdexta/agent-exchange/blob/main/claude.rc/verification.md)
-- [Adding a coding harness](https://github.com/rcdexta/agent-exchange/blob/main/claude.rc/adapters.md)
+- [Pi setup and resume](https://github.com/summationai/agent-exchange/blob/main/claude.rc/pi.md)
+- [Usage, permissions, and resume](https://github.com/summationai/agent-exchange/blob/main/claude.rc/README.md)
+- [Tested platforms and harness versions](https://github.com/summationai/agent-exchange/blob/main/claude.rc/verification.md)
+- [Adding a coding harness](https://github.com/summationai/agent-exchange/blob/main/claude.rc/adapters.md)

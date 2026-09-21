@@ -5,7 +5,7 @@ import { pages, docPath } from './pages.mjs';
 
 const root = new URL('../', import.meta.url);
 const output = new URL('./dist/', import.meta.url);
-const github = 'https://github.com/rcdexta/agent-exchange';
+const github = 'https://github.com/summationai/agent-exchange';
 const md = new MarkdownIt({ html: false });
 const escape = md.utils.escapeHtml;
 const header = `<a class="skip-link" href="#main">Skip to content</a>

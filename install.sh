@@ -2,7 +2,7 @@
 set -eu
 
 main() {
-  repo=rcdexta/agent-exchange
+  repo=summationai/agent-exchange
   command -v curl >/dev/null 2>&1 || { echo 'Install curl, then run this installer again.' >&2; exit 1; }
   case "$(uname -s)" in
     Darwin) platform=darwin ;;

@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/rcdexta/agent-exchange/internal/ax"
+	"github.com/summationai/agent-exchange/internal/ax"
 	"os"
 )
 

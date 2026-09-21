@@ -39,7 +39,7 @@ class InstallTest(unittest.TestCase):
         curl.write_text('''#!/usr/bin/env python3
 import os, pathlib, shutil, sys
 args = sys.argv[1:]
-base = "https://github.com/rcdexta/agent-exchange/releases"
+base = "https://github.com/summationai/agent-exchange/releases"
 version = "v" + os.environ["AX_TEST_VERSION"]
 url = next(arg for arg in args if arg.startswith("https://"))
 if url == base + "/latest":

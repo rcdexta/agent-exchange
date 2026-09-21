@@ -64,4 +64,4 @@ The [resource-protection guide](resource-safety.md) describes the helper cooldow
 
 Include `ax version`, your OS, the harness and its version, and the relevant agent names and message IDs. Share the observed delivery state and what you expected. Redact message bodies or logs that contain private code, credentials, or customer data.
 
-[Open an issue on GitHub](https://github.com/rcdexta/agent-exchange/issues).
+[Open an issue on GitHub](https://github.com/summationai/agent-exchange/issues).
