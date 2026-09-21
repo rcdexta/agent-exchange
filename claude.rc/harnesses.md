@@ -1,6 +1,6 @@
 # Supported harnesses
 
-The published AX release connects Claude Code, Codex CLI, Grok Build, and OpenCode. Pi is available as a source preview. Each integration loads the shared messaging tools and uses the harness’s native APIs to identify and wake the selected conversation.
+AX connects Claude Code, Codex CLI, Grok Build, OpenCode, and Pi. Each integration loads the shared messaging tools and uses the harness’s native APIs to identify and wake the selected conversation.
 
 ## Launch commands
 
@@ -10,7 +10,7 @@ The published AX release connects Claude Code, Codex CLI, Grok Build, and OpenCo
 | Codex CLI | `ax codex -name web` | MCP tools and a private native app server |
 | Grok Build | `ax grok -name reviewer` | MCP tools and a private native leader |
 | OpenCode | `ax opencode -name editor` | MCP tools and a per-launch TUI plugin |
-| Pi (unreleased) | `ax pi -name worker` | Native extension and an optional messaging child |
+| Pi | `ax pi -name worker` | Native extension and an optional messaging child |
 
 Names work across repositories for the same OS user. AX consumes the name option and passes other arguments to the native harness. [Resume commands](README.md#launch-and-resume) work with existing conversations.
 
@@ -24,7 +24,7 @@ Grok runs through its native leader. Leader-mode restrictions apply, and standal
 
 OpenCode uses the full TUI plugin API. Its pure and mini modes do not load AX’s adapter. An existing `OPENCODE_TUI_CONFIG` override must currently contain JSON.
 
-Pi uses its native extension API. Messaging failures leave Pi running. Starting a new conversation or fork disables messaging for the original AX name; use a new name for the new conversation. Pi 0.86.1 is tested. See [source preview setup and limits](pi.md).
+Pi uses its native extension API. Messaging failures leave Pi running. Starting a new conversation or fork disables messaging for the original AX name; use a new name for the new conversation. Pi 0.86.1 is tested. See [Pi setup and limits](pi.md).
 
 Forwarding an argument does not guarantee that every native mode supports messaging.
 

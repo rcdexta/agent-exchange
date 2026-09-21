@@ -49,9 +49,9 @@ The exact public README command installed and reinstalled 0.5.4 on macOS ARM64 i
 
 Live harness exchanges on Linux and WSL, native Windows, remote transport, every native subcommand, and all host policy configurations are outside the verified scope. Native acceptance is distinct from a model acknowledgment and from successful task completion.
 
-## Pi source preview
+## Pi
 
-September 21, 2026. The unreleased adapter was tested with Pi 0.86.1 and Codex CLI 0.154.0 on macOS ARM64, using a separate AX broker, temporary state, and headless native processes. Existing user sessions and the installed AX binary were unchanged.
+September 21, 2026. The adapter included in AX 0.6.0 was tested with Pi 0.86.1 and Codex CLI 0.154.0 on macOS ARM64, using a separate AX broker, temporary state, and headless native processes. Existing user sessions and the installed AX binary were unchanged.
 
 Pi loaded the real extension and its TypeBox schemas, registered the shared AX tools, and became ready with zero model messages. Pi sent `AX_PI_TO_CODEX_OK`; Codex read it through AX and replied `AX_CODEX_TO_PI_OK`. Pi woke automatically and acknowledged the reply. Both mailbox records reached `acknowledged`.
 

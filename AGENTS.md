@@ -1,6 +1,6 @@
 # Install Agent Exchange (AX)
 
-Follow this guide when the user asks you to install or update Agent Exchange. AX connects named Claude Code, Codex CLI, Grok Build, and OpenCode sessions on the same machine. Its command is `ax`.
+Follow this guide when the user asks you to install or update Agent Exchange. AX connects named Claude Code, Codex CLI, Grok Build, OpenCode, and Pi sessions on the same machine. Its command is `ax`.
 
 ## Requirements
 
@@ -43,7 +43,7 @@ ax codex -name web
 
 Ask Codex: **“Ask api whether the schema is ready.”** Both agents connect automatically. Names work across repositories for the same OS user.
 
-Other supported harnesses join with `ax grok -name worker` or `ax opencode -name editor`. AX consumes the name option and passes other arguments through to the native harness. Use the native resume syntax to adopt an existing conversation:
+Other supported harnesses join with `ax grok -name worker`, `ax opencode -name editor`, or `ax pi -name worker`. AX consumes the name option and passes other arguments through to the native harness. Use the native resume syntax to adopt an existing conversation:
 
 ```sh
 ax claude -name api -r "session-name"
@@ -52,13 +52,24 @@ ax codex -name web resume "session-name"
 
 Launching the same AX name without additional arguments resumes its saved conversation. Existing sessions keep running during an AX update; relaunch them to use the new binary. Saved conversations and AX mailbox state are preserved.
 
+## Updating running sessions
+
+Installing a new binary does not replace a running broker or bridge. New features need the new broker as well as relaunched sessions. To finish an update from 0.5.x:
+
+1. Let active work finish and close the AX-launched sessions normally. Keep their names for resume.
+2. Identify the current user's `ax serve` process that owns the socket in the relevant AX state directory, using the system's process and socket inspection tools. The default socket is `$HOME/.ax/broker.sock`; `AX_HOME` selects another directory.
+3. Stop only that verified broker PID with `kill -TERM BROKER_PID` and wait for it to exit before proceeding. Do not signal a launcher, bridge, harness, or process group. If its identity cannot be verified, leave it running and report that the broker update is still pending.
+4. Run `ax agents` to start the broker from the installed binary, then relaunch the saved AX names.
+
+Saved conversations and mail are preserved. Version 0.6.0 upgrades the mailbox to schema 3; an older broker cannot open that upgraded mailbox. Do not downgrade the broker against it.
+
 ## Optional installation settings
 
 Download the installer first to inspect it or select a release:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/rcdexta/agent-exchange/main/install.sh -o install-ax.sh
-AX_VERSION=v0.5.4 sh install-ax.sh
+AX_VERSION=v0.6.0 sh install-ax.sh
 ```
 
 `AX_INSTALL_DIR` chooses another binary directory. `AX_NO_MODIFY_PATH=1` disables changes to shell configuration. Set these variables on the `sh install-ax.sh` invocation. With a custom directory, add that directory to PATH before running AX.
@@ -71,8 +82,7 @@ When the user requests uninstallation, remove the installed `ax` binary and any 
 
 ## Further details
 
-Pi support is available as an unreleased [source preview](https://github.com/rcdexta/agent-exchange/blob/main/claude.rc/pi.md). The published installer does not include it yet.
-
+- [Pi setup and resume](https://github.com/rcdexta/agent-exchange/blob/main/claude.rc/pi.md)
 - [Usage, permissions, and resume](https://github.com/rcdexta/agent-exchange/blob/main/claude.rc/README.md)
 - [Tested platforms and harness versions](https://github.com/rcdexta/agent-exchange/blob/main/claude.rc/verification.md)
 - [Adding a coding harness](https://github.com/rcdexta/agent-exchange/blob/main/claude.rc/adapters.md)
