@@ -36,16 +36,17 @@ type Agent struct {
 	AllowBypass bool   `json:"allow_bypass"`
 }
 type Message struct {
-	ID        string `json:"message_id"`
-	Sender    Agent  `json:"sender"`
-	Recipient string `json:"recipient_id"`
-	Text      string `json:"text"`
-	Parent    string `json:"in_reply_to,omitempty"`
-	Seq       int64  `json:"recipient_seq"`
-	Created   int64  `json:"created_at_ms"`
-	Expires   int64  `json:"expires_at_ms"`
-	Depth     int    `json:"reply_depth"`
-	State     string `json:"status"`
+	ID        string       `json:"message_id"`
+	Sender    Agent        `json:"sender"`
+	Recipient string       `json:"recipient_id"`
+	Text      string       `json:"text"`
+	Parent    string       `json:"in_reply_to,omitempty"`
+	Seq       int64        `json:"recipient_seq"`
+	Created   int64        `json:"created_at_ms"`
+	Expires   int64        `json:"expires_at_ms"`
+	Depth     int          `json:"reply_depth"`
+	State     string       `json:"status"`
+	Receipt   *sendReceipt `json:"receipt,omitempty"`
 }
 type peer struct {
 	Agent
@@ -338,19 +339,20 @@ func (b *broker) auth(c *serverConn) (*peer, error) {
 func (b *broker) request(c *serverConn, method string, params json.RawMessage) (any, error) {
 	var a struct {
 		Session
-		Version        string `json:"version"`
-		Native         string `json:"native_session_id"`
-		Permission     string `json:"permission_mode"`
-		State          string `json:"state"`
-		Policy         string `json:"policy"`
-		Target         string `json:"target"`
-		Text           string `json:"text"`
-		ClientID       string `json:"client_message_id"`
-		MessageID      string `json:"message_id"`
-		NotificationID string `json:"notification_id"`
-		Receipt        string `json:"receipt"`
-		TTL            int    `json:"ttl_seconds"`
-		Mesh           string `json:"mesh"`
+		Version        string          `json:"version"`
+		Native         string          `json:"native_session_id"`
+		Permission     string          `json:"permission_mode"`
+		State          string          `json:"state"`
+		Policy         string          `json:"policy"`
+		Target         string          `json:"target"`
+		Text           string          `json:"text"`
+		ClientID       string          `json:"client_message_id"`
+		MessageID      string          `json:"message_id"`
+		NotificationID string          `json:"notification_id"`
+		Receipt        string          `json:"receipt"`
+		TTL            json.RawMessage `json:"ttl_seconds"`
+		AfterSeq       json.RawMessage `json:"after_seq"`
+		Mesh           string          `json:"mesh"`
 	}
 	if e := json.Unmarshal(params, &a); e != nil {
 		return nil, errors.New("invalid parameters")
@@ -548,8 +550,18 @@ func (b *broker) request(c *serverConn, method string, params json.RawMessage) (
 		return p.Agent, b.save(p)
 	case "ax.list":
 		return b.list(), nil
+	case "ax.pending":
+		after, err := integerArgument(a.AfterSeq, "after_seq", 0, 0, maxSequence)
+		if err != nil {
+			return nil, err
+		}
+		return b.pending(p, after)
 	case "ax.send", "ax.reply":
-		return b.send(p, a.Target, a.MessageID, a.Text, a.ClientID, a.TTL, method == "ax.reply")
+		ttl, err := integerArgument(a.TTL, "ttl_seconds", defaultTTL, 1, maxTTL)
+		if err != nil {
+			return nil, err
+		}
+		return b.send(p, a.Target, a.MessageID, a.Text, a.ClientID, int(ttl), method == "ax.reply")
 	case "ax.get_message", "ax.ack", "ax.receipt", "ax.status":
 		m, e := b.message(a.MessageID)
 		if e != nil {
@@ -597,14 +609,7 @@ func validNative(id string) bool {
 func (b *broker) list() []Agent {
 	out := []Agent{}
 	for _, p := range b.peers {
-		a := p.Agent
-		a.Online = p.conn != nil && time.Since(p.seen) <= 15*time.Second
-		if !a.Online {
-			a.State = "offline"
-		} else if !p.ready {
-			a.State = "starting"
-		}
-		out = append(out, a)
+		out = append(out, agentSnapshot(p))
 	}
 	return out
 }
@@ -655,7 +660,7 @@ func (b *broker) status(id string) (any, error) {
 		}
 		events = append(events, object{"event": s, "at_ms": at, "epoch": epoch})
 	}
-	return object{"message": m, "events": events}, rows.Err()
+	return object{"message": m, "events": events, "delivery_evidence": deliveryEvidence(m.State), "acknowledged": m.State == "acknowledged", "task_completion": "unknown"}, rows.Err()
 }
 func safe(p *peer) bool {
 	if p.Host == "pi" && p.Permission == "native" {
@@ -677,10 +682,10 @@ func (b *broker) send(p *peer, target, parent, text, key string, ttl int, reply 
 		return nil, errors.New("provide client_message_id and 1 to 65536 bytes of UTF-8 text")
 	}
 	if ttl == 0 {
-		ttl = 43200
+		ttl = defaultTTL
 	}
-	if ttl < 1 || ttl > 86400 {
-		return nil, errors.New("TTL must be between 1 and 86400 seconds")
+	if ttl < 1 || ttl > maxTTL {
+		return nil, fmt.Errorf("TTL must be between 1 and %d seconds", maxTTL)
 	}
 	hash := digest(string(raw([]any{target, parent, text, ttl, reply})))
 	var existing, prior string
@@ -689,7 +694,11 @@ func (b *broker) send(p *peer, target, parent, text, key string, ttl int, reply 
 		if hash != prior {
 			return nil, errors.New("client_message_id already used with different content")
 		}
-		return b.message(existing)
+		m, err := b.message(existing)
+		if err != nil {
+			return nil, err
+		}
+		return b.sendResult(b.db, m, key)
 	}
 	if e != sql.ErrNoRows {
 		return nil, e
@@ -771,6 +780,10 @@ func (b *broker) send(p *peer, target, parent, text, key string, ttl int, reply 
 			return nil, e
 		}
 	}
+	m, e = b.sendResult(tx, m, key)
+	if e != nil {
+		return nil, e
+	}
 	if e = tx.Commit(); e != nil {
 		return nil, e
 	}
@@ -835,7 +848,7 @@ func (b *broker) dispatch() {
 
 func dispatchAfter(method string) bool {
 	switch method {
-	case "ax.ping", "ax.heartbeat", "ax.list", "ax.inspect", "ax.status", "ax.inspect_message", "ax.inbox", "ax.inbox_message", "ax.notifications":
+	case "ax.ping", "ax.heartbeat", "ax.list", "ax.pending", "ax.inspect", "ax.status", "ax.inspect_message", "ax.inbox", "ax.inbox_message", "ax.notifications":
 		return false
 	}
 	return true

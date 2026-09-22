@@ -151,7 +151,9 @@ export default function ax(pi) {
     const fields = Object.fromEntries(Object.entries(spec.inputSchema.properties).map(([name, value]) => {
       const schema = value.type === 'array'
         ? Type.Array(Type.String(), { maxItems: value.maxItems, description: value.description })
-        : Type.String({ description: value.description });
+        : value.type === 'integer'
+          ? Type.Integer({ minimum: value.minimum, maximum: value.maximum, description: value.description })
+          : Type.String({ description: value.description });
       return [name, spec.inputSchema.required.includes(name) ? schema : Type.Optional(schema)];
     }));
     pi.registerTool({

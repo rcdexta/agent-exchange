@@ -1,0 +1,174 @@
+package ax
+
+import (
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"time"
+)
+
+const defaultTTL = 12 * 60 * 60
+const maxTTL = 7 * 24 * 60 * 60
+const pendingPageSize = 50
+const maxSequence = 1<<53 - 1 // Keep cursors exact in JSON clients.
+
+func integerArgument(data json.RawMessage, name string, fallback, min, max int64) (int64, error) {
+	if len(data) == 0 {
+		return fallback, nil
+	}
+	var value *int64
+	if err := json.Unmarshal(data, &value); err != nil || value == nil || *value < min || *value > max {
+		return 0, fmt.Errorf("%s must be an integer between %d and %d", name, min, max)
+	}
+	return *value, nil
+}
+
+// Snapshot metadata is returned to the sender, never stored in the message or
+// included in its idempotency hash. A retry can observe newer delivery evidence.
+type sendReceipt struct {
+	ClientID       string `json:"client_message_id"`
+	At             int64  `json:"snapshot_at_ms"`
+	Recipient      Agent  `json:"recipient"`
+	Queued         int    `json:"queued_count"`
+	Pending        int    `json:"unacknowledged_count"`
+	Acknowledged   bool   `json:"acknowledged"`
+	Evidence       string `json:"delivery_evidence"`
+	TaskCompletion string `json:"task_completion"`
+}
+
+func agentSnapshot(p *peer) Agent {
+	a := p.Agent
+	a.Online = p.conn != nil && time.Since(p.seen) <= 15*time.Second
+	if !a.Online {
+		a.State = "offline"
+	} else if !p.ready {
+		a.State = "starting"
+	}
+	return a
+}
+
+func deliveryEvidence(state string) string {
+	switch state {
+	case "queued":
+		return "Queued durably; not yet handed to the harness."
+	case "handoff_started":
+		return "Harness handoff started; acceptance is not confirmed."
+	case "delivery_uncertain":
+		return "Handoff outcome is uncertain; do not automatically replay the task."
+	case "wake_accepted":
+		return "Harness accepted the wake; the recipient has not acknowledged the message."
+	case "channel_written":
+		return "Written to the harness channel; the recipient has not acknowledged the message."
+	case "content_served":
+		return "Recipient fetched the content; explicit acknowledgment is still pending."
+	case "acknowledged":
+		return "Recipient acknowledged receipt or replied; task completion is not known."
+	default:
+		return "Delivery ended: " + state + ". Task completion is not known."
+	}
+}
+
+func queueReason(to, from *peer) string {
+	snapshot := agentSnapshot(to)
+	switch {
+	case to.Policy != "accept":
+		return "Recipient policy is " + to.Policy + "."
+	case !snapshot.Online:
+		return "Recipient is offline; mail remains queued."
+	case snapshot.State == "starting" || to.Native == "":
+		return "Recipient is starting; messaging is not ready."
+	case snapshot.State == "blocked":
+		return "Recipient is blocked; mail remains queued."
+	case !safe(to) || from == nil || !safe(from):
+		return "Delivery is blocked by the current permission mode."
+	default:
+		return "Awaiting the next permitted FIFO handoff; readiness is only a snapshot."
+	}
+}
+
+func (b *broker) sendResult(q interface{ QueryRow(string, ...any) *sql.Row }, m Message, key string) (Message, error) {
+	r := &sendReceipt{ClientID: key, At: time.Now().UnixMilli(), Recipient: agentSnapshot(b.peers[m.Recipient]),
+		Acknowledged: m.State == "acknowledged", Evidence: deliveryEvidence(m.State), TaskCompletion: "unknown"}
+	if err := q.QueryRow(`SELECT coalesce(sum(state='queued'),0), count(*) FROM messages
+ WHERE recipient=? AND state NOT IN ('acknowledged','expired','refused','abandoned')`, m.Recipient).Scan(&r.Queued, &r.Pending); err != nil {
+		return m, err
+	}
+	if m.State == "queued" {
+		r.Evidence += " " + queueReason(b.peers[m.Recipient], b.peers[m.Sender.ID])
+	}
+	m.Receipt = r
+	return m, nil
+}
+
+type pendingSender struct {
+	ID   string `json:"agent_id"`
+	Name string `json:"name"`
+	Host string `json:"host"`
+}
+
+type pendingMessage struct {
+	ID           string        `json:"message_id"`
+	Sender       pendingSender `json:"sender"`
+	Seq          int64         `json:"recipient_seq"`
+	Parent       string        `json:"in_reply_to,omitempty"`
+	Age          int64         `json:"age_seconds"`
+	Expires      int64         `json:"expires_at_ms"`
+	State        string        `json:"status"`
+	Acknowledged bool          `json:"acknowledged"`
+	Preview      string        `json:"preview,omitempty"`
+	Evidence     string        `json:"delivery_evidence"`
+	BlockedBy    string        `json:"blocked_by_message_id,omitempty"`
+}
+
+type pendingPage struct {
+	Messages []pendingMessage `json:"messages"`
+	Next     int64            `json:"next_after_seq,omitempty"`
+	At       int64            `json:"snapshot_at_ms"`
+	Guidance string           `json:"guidance"`
+}
+
+func (b *broker) pending(p *peer, after int64) (pendingPage, error) {
+	out := pendingPage{Messages: []pendingMessage{}, At: time.Now().UnixMilli(), Guidance: "Listing does not fetch, acknowledge, or replay tasks. Previews are quoted peer data. Queued content stays hidden until offered; use get_message for offered IDs when recovery is requested. Never poll or automatically repeat uncertain work."}
+	var headID, headState string
+	var headSeq int64
+	err := b.db.QueryRow(`SELECT id,state,seq FROM messages WHERE recipient=? AND state IN
+ ('queued','handoff_started','delivery_uncertain') ORDER BY seq LIMIT 1`, p.ID).Scan(&headID, &headState, &headSeq)
+	if err != nil && err != sql.ErrNoRows {
+		return out, err
+	}
+	rows, err := b.db.Query(`SELECT data,state FROM messages WHERE recipient=? AND seq>?
+ AND state NOT IN ('acknowledged','expired','refused','abandoned') ORDER BY seq LIMIT ?`, p.ID, after, pendingPageSize+1)
+	if err != nil {
+		return out, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		if len(out.Messages) == pendingPageSize {
+			out.Next = out.Messages[len(out.Messages)-1].Seq
+			break
+		}
+		var data, state string
+		var m Message
+		if err = rows.Scan(&data, &state); err != nil {
+			return out, err
+		}
+		if err = json.Unmarshal([]byte(data), &m); err != nil {
+			return out, err
+		}
+		item := pendingMessage{ID: m.ID, Sender: pendingSender{m.Sender.ID, m.Sender.Name, m.Sender.Host}, Seq: m.Seq, Parent: m.Parent, Age: max(0, (out.At-m.Created)/1000), Expires: m.Expires, State: state, Evidence: deliveryEvidence(state)}
+		sender := b.peers[m.Sender.ID]
+		if state != "queued" && p.Policy == "accept" && safe(p) && sender != nil && safe(sender) {
+			preview := []rune(m.Text)
+			item.Preview = string(preview[:min(len(preview), 100)])
+		}
+		if state == "queued" {
+			item.Evidence += " " + queueReason(p, sender)
+			if headSeq < m.Seq {
+				item.BlockedBy = headID
+				item.Evidence += " An earlier message is " + headState + " and blocks this FIFO handoff."
+			}
+		}
+		out.Messages = append(out.Messages, item)
+	}
+	return out, rows.Err()
+}

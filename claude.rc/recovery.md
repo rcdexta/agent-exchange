@@ -26,7 +26,53 @@ Failures include structured fields in addition to their JSON text representation
 response. It does not mean delivery failed. A broker error after submission is
 also treated conservatively because it can report a commit failure.
 
-These changes do not restart native harnesses or replace the running AX binary.
-Pending-request discovery and sender expiry notifications are tracked separately
-in [#5](https://github.com/summationai/agent-exchange/issues/5) and
-[#3](https://github.com/summationai/agent-exchange/issues/3).
+## Recover a missed wake
+
+Ask the agent to call `list_pending` once after a reconnect or when a request
+seems missing. It lists only that agent's unacknowledged incoming mail, ordered by
+recipient sequence. Each page contains at most 50 entries with message ID, sender,
+age, expiry, delivery state, and a preview of up to 100 Unicode characters. When
+`next_after_seq` is present, pass it as `after_seq` to read the next page. These are
+live pages: acknowledgments can remove entries, and new mail has later sequences.
+
+Listing changes no receipts and never replays a task. Queued previews remain
+hidden until the message has been offered; hold, refuse, and unapproved permission
+modes also hide previews. Offered IDs can be fetched through `get_message` during
+recovery. An uncertain handoff remains uncertain: check whether work was already
+started before acting. Later queued messages identify the earlier FIFO blocker.
+Terminal messages are excluded. Neither discovery nor a fetched preview means the
+user requested that work to be executed again. Never poll this tool for replies.
+
+## Read a send receipt
+
+Successful `send_message` and `reply` results include `message.receipt` with the
+stable `client_message_id`, recipient readiness, snapshot time, queued count,
+unacknowledged count, and delivery evidence. The message itself includes its
+effective `expires_at_ms`. Readiness is a snapshot, not a guarantee. Offline and
+starting recipients retain queued mail; the receipt says why it is waiting.
+
+`wake_accepted` means the harness accepted a wake. `channel_written` means AX wrote
+to its channel. `content_served` means the recipient fetched the body. Only
+`acknowledged` records an acknowledgment or reply, and none of these states proves
+task completion. Send receipts and `delivery_status` report `task_completion` as
+`unknown`. Retrying the same request returns the same message and expiry, with an
+updated readiness and delivery snapshot.
+
+## Choose an expiry
+
+Both send and reply accept the optional integer `ttl_seconds`. Omitted values
+default to 43,200 seconds (12 hours). Values must be between 1 and 604,800 seconds
+(7 days), so a request can explicitly wait through a weekend. Nulls, strings,
+fractions, zero, negative values, and values above that limit are rejected before
+mail is queued. AX does not infer an expiry from the message's wording.
+
+Keep the same expiry when retrying an idempotency key; changing the effective TTL
+is a conflict. TTL controls queued delivery, not a running task's deadline. Once
+handoff has started, expiry does not cancel or automatically repeat uncertain or
+accepted work. Expired queued requests produce a [sender notification](delivery-notifications.md).
+
+Longer TTLs share the existing 1,024-message and 32 MiB unresolved-mail capacity
+limits. Unresolved messages survive cleanup; terminal records become eligible for
+cleanup seven days after creation. No mailbox migration is needed. Install an
+updated broker and relaunch messaging integrations through the normal update
+procedure to expose these tools; installing a binary does not replace live processes.

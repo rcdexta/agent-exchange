@@ -35,12 +35,19 @@ try {
   // real child-process pipes and the documented Pi event/message interface.
   const source = readFileSync(new URL('../pi.js', import.meta.url), 'utf8').replace(
     "import { Type } from 'typebox';",
-    'const Type = { String: x => ({type:"string", ...x}), Array: (x, opts) => ({type:"array", items:x, ...opts}), Optional: x => x, Object: x => ({type:"object", properties:x}) };');
+    'const Type = { String: x => ({type:"string", ...x}), Integer: x => ({type:"integer", ...x}), Array: (x, opts) => ({type:"array", items:x, ...opts}), Optional: x => x, Object: x => ({type:"object", properties:x}) };');
   const { default: extension } = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
   extension(pi);
   assert.equal(statuses.length, 0, 'factory started background resources');
   assert.equal(tools.size, JSON.parse(process.env.AX_TEST_PI_TOOLS).length);
   assert.equal(tools.get("ax_spawn_agent").parameters.properties.args.type, "array");
+  for (const name of ['ax_send_message', 'ax_reply']) {
+    const ttl = tools.get(name).parameters.properties.ttl_seconds;
+    assert.equal(ttl.type, 'integer');
+    assert.equal(ttl.minimum, 1);
+    assert.equal(ttl.maximum, 604800);
+  }
+  assert.equal(tools.get('ax_list_pending').parameters.properties.after_seq.type, 'integer');
   assert.equal(events.get('before_agent_start')({ systemPrompt: 'Native prompt' }).systemPrompt, 'Native prompt\n\nScoped AX policy');
   startSession();
   await until(() => statuses.at(-1) === 'AX connected');
