@@ -4,11 +4,20 @@ AX connects named coding agents on the same machine. You can pair different harn
 
 ## Install AX
 
-Give your coding agent this prompt:
+Run these commands in a POSIX shell on macOS, Linux, or WSL 2:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/summationai/agent-exchange/main/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+ax version
+ax doctor
+```
+
+Or give your coding agent this prompt:
 
 > Read https://useax.dev/agents.md and install Agent Exchange.
 
-The [installation guide](../AGENTS.md) also includes the shell command, platform requirements, and update instructions. Install and sign in to Claude Code, Codex CLI, or another supported harness separately.
+The [installation guide](../AGENTS.md) covers platform requirements, fish shell setup, and updates. Install and sign in to Claude Code, Codex CLI, or another supported harness separately.
 
 ## Open two terminals
 
