@@ -58,6 +58,61 @@ func TestClosedClientDoesNotSubmit(t *testing.T) {
 	}
 }
 
+// Hold the request writer until the response reader has received both a full
+// response and EOF. This reproduces a broker closing just after its last reply.
+type responseBeforeCloseConn struct {
+	net.Conn
+	writes int
+	closed <-chan struct{}
+}
+
+func (c *responseBeforeCloseConn) Write(p []byte) (int, error) {
+	n, err := c.Conn.Write(p)
+	c.writes++
+	if err == nil && c.writes == 2 {
+		<-c.closed
+	}
+	return n, err
+}
+
+func TestCompletedResponseSurvivesConnectionClose(t *testing.T) {
+	for _, failure := range []bool{false, true} {
+		for range 32 {
+			x, y := net.Pipe()
+			conn := &responseBeforeCloseConn{Conn: x}
+			c := newClient(conn)
+			conn.closed = c.done
+			server := make(chan error, 1)
+			go func() {
+				defer y.Close()
+				p, err := readFrame(y)
+				if err == nil {
+					reply := packet{ID: p.ID, Result: raw(object{"message_id": "stored"})}
+					if failure {
+						reply.Error = &rpcError{Code: -32000, Message: "recipient refuses messages"}
+					}
+					err = writeFrame(y, reply)
+				}
+				server <- err
+			}()
+			var out object
+			err := c.call("ax.send", object{}, &out)
+			c.close()
+			if serverErr := <-server; serverErr != nil {
+				t.Fatal(serverErr)
+			}
+			if failure {
+				var rpc *rpcError
+				if !errors.As(err, &rpc) || rpc.Message != "recipient refuses messages" {
+					t.Fatalf("complete broker error lost on close: %v", err)
+				}
+			} else if err != nil || out["message_id"] != "stored" {
+				t.Fatalf("complete success response lost on close: result=%v error=%v", out, err)
+			}
+		}
+	}
+}
+
 func TestSendRecoversLostResponseWithoutDuplicate(t *testing.T) {
 	store, dir := localBroker(t)
 	s, owner, wire := endpoint(t, store, "web", testMesh)
