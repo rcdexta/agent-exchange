@@ -182,6 +182,47 @@ func TestLauncherForwardsPromptAndResume(t *testing.T) {
 	}
 }
 
+func TestFreshClaudeNameResumesOnlyAfterNativeBinding(t *testing.T) {
+	dir, bin := startTestServer(t), testDir(t)
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	out := filepath.Join(bin, "args")
+	script := "#!/bin/sh\nprintf '%s\\0' \"$@\" > " + shellQuote(out) + "\n"
+	if err := os.WriteFile(filepath.Join(bin, "claude"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	launchArgs := func() []string {
+		t.Helper()
+		if err := Launch(context.Background(), dir, "claude", []string{"--name", "fresh"}); err != nil {
+			t.Fatal(err)
+		}
+		b, err := os.ReadFile(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.Split(strings.TrimSuffix(string(b), "\x00"), "\x00")
+	}
+	for i := 0; i < 2; i++ {
+		// The fake harness exits before SessionStart, leaving an unbound identity.
+		for _, arg := range launchArgs() {
+			if arg == "--resume" || arg == "-r" {
+				t.Fatalf("launch %d resumed an unbound conversation", i)
+			}
+		}
+	}
+	path, err := namedSessionPath(filepath.Join(dir, "sessions"), "fresh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	native := uuid()
+	if err := Hook(dir, path, bytes.NewReader(raw(object{"session_id": native, "hook_event_name": "SessionStart", "permission_mode": "default"}))); err != nil {
+		t.Fatal(err)
+	}
+	actual := launchArgs()
+	if len(actual) < 2 || actual[0] != "--resume" || actual[1] != native {
+		t.Fatalf("saved native binding was not resumed: %q", actual)
+	}
+}
+
 func TestLifecycleBindsExistingSession(t *testing.T) {
 	dir := startTestServer(t)
 	for _, host := range []string{"claude", "codex", "pi"} {
