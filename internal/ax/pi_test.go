@@ -175,7 +175,7 @@ func TestPiSpawnRejectedBeforePaneOrReservation(t *testing.T) {
 			t.Fatal("opened a Pi pane without an exit monitor")
 			return "", nil
 		})
-	if err == nil || !strings.Contains(err.Error(), "launch ax pi -name worker in a terminal") {
+	if err == nil || !strings.Contains(err.Error(), "launch ax pi --name worker in a terminal") {
 		t.Fatalf("missing actionable Pi spawn error: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "spawns")); !os.IsNotExist(err) {

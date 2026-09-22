@@ -11,10 +11,10 @@ Install and sign in to Pi separately, using the current `@earendil-works/pi-codi
 [Install or update AX](../AGENTS.md), then launch a named Pi session:
 
 ```sh
-ax pi -name worker
+ax pi --name worker
 ```
 
-In another terminal, start a named peer, for example `ax codex -name web`. Ask Pi: **“Ask web what it is working on.”** Both agents use the same broker and durable mailbox. Names work across repositories for the same OS user.
+In another terminal, start a named peer, for example `ax codex --name web`. Ask Pi: **“Ask web what it is working on.”** Both agents use the same broker and durable mailbox. Names work across repositories for the same OS user.
 
 Opening a Pi pane through `ax spawn` or `spawn_agent` is not supported yet. Start Pi in a terminal yourself. A Pi session can still launch other supported harnesses when you explicitly request it.
 
@@ -23,11 +23,11 @@ Opening a Pi pane through `ax spawn` or `spawn_agent` is not supported yet. Star
 AX consumes the name option and passes other arguments through to Pi. Use Pi’s native session picker or select a session file:
 
 ```sh
-ax pi -name worker -r
-ax pi -name worker --session /path/to/session.jsonl
+ax pi --name worker -r
+ax pi --name worker --session /path/to/session.jsonl
 ```
 
-Launching `ax pi -name worker` with no additional arguments resumes the saved Pi session file, even from another repository. Each AX name stays attached to one conversation. If you start a new conversation or fork inside Pi, AX messaging stops for that name; the native Pi session continues. Launch with a new AX name to connect the new conversation.
+Launching `ax pi --name worker` with no additional arguments resumes the saved Pi session file, even from another repository. Each AX name stays attached to one conversation. If you start a new conversation or fork inside Pi, AX messaging stops for that name; the native Pi session continues. Launch with a new AX name to connect the new conversation.
 
 ## Delivery and recovery
 

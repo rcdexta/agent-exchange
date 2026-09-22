@@ -88,7 +88,7 @@ func normalizeSpawn(req spawnRequest, parent Session) (spawnRequest, error) {
 	}
 	if harnesses[req.Host].nativeLaunch {
 		// Exec would replace the dispatcher before it can record the native exit.
-		return req, fmt.Errorf("pane spawning is not supported for %s yet; launch ax %s -name %s in a terminal", req.Host, req.Host, req.Name)
+		return req, fmt.Errorf("pane spawning is not supported for %s yet; launch ax %s --name %s in a terminal", req.Host, req.Host, req.Name)
 	}
 	if _, err := exec.LookPath(req.Host); err != nil {
 		return req, fmt.Errorf("install and sign in to %s first", req.Host)
@@ -116,7 +116,7 @@ func normalizeSpawn(req spawnRequest, parent Session) (spawnRequest, error) {
 			return req, errors.New("native arguments must be valid text without NUL")
 		}
 	}
-	name, native, err := launchArgs(append([]string{"-name", req.Name}, req.Args...))
+	name, native, err := launchArgs(append([]string{"--name", req.Name}, req.Args...))
 	if err != nil || name != req.Name || !reflect.DeepEqual(native, req.Args) && !(len(native) == 0 && len(req.Args) == 0) {
 		return req, errors.New("set the AX name through name, not native arguments")
 	}
@@ -338,7 +338,7 @@ func runSpawn(ctx context.Context, dir, name, token string) error {
 	os.Setenv("PATH", record.Path)
 	err = os.Chdir(record.Request.CWD)
 	if err == nil {
-		err = launch(ctx, dir, record.Request.Host, append([]string{"-name", name}, record.Request.Args...), token)
+		err = launch(ctx, dir, record.Request.Host, append([]string{"--name", name}, record.Request.Args...), token)
 	}
 	finalErr := updateSpawn(dir, name, func(r *spawnRecord) {
 		r.Phase, r.Error = "exited", ""
@@ -351,7 +351,7 @@ func runSpawn(ctx context.Context, dir, name, token string) error {
 
 func spawnCLI(ctx context.Context, dir string, args []string) (spawnResult, error) {
 	if len(args) < 1 {
-		return spawnResult{}, errors.New("usage: ax spawn HARNESS -name NAME [-cwd DIRECTORY] [native arguments]")
+		return spawnResult{}, errors.New("usage: ax spawn HARNESS --name NAME [--cwd DIRECTORY] [native arguments]")
 	}
 	parent := Session{ID: "cli", Terminal: detectTerminal()}
 	parent.SpawnRoot = "tree_" + digest(string(raw(parent.Terminal)))[:32]
@@ -370,7 +370,12 @@ func spawnCLI(ctx context.Context, dir string, args []string) (spawnResult, erro
 			native = append(native, args[i:]...)
 			break
 		}
-		if args[i] == "-cwd" || args[i] == "--cwd" {
+		// Unlike -name, a stray -cwd would reach the harness rather than fail name
+		// validation, so reject it here instead of forwarding a half-parsed option.
+		if args[i] == "-cwd" || strings.HasPrefix(args[i], "-cwd=") {
+			return spawnResult{}, errors.New("-cwd is no longer the AX cwd option; use --cwd /absolute/path")
+		}
+		if args[i] == "--cwd" {
 			i++
 			if i == len(args) {
 				return spawnResult{}, errors.New("cwd needs a value")

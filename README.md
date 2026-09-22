@@ -25,8 +25,8 @@ AX 0.6.1 includes all five harnesses, the inbox, pane launching, and resource pr
 Open two terminals, in any repositories:
 
 ```sh
-ax claude -name api
-ax codex -name web
+ax claude --name api
+ax codex --name web
 ```
 
 Ask Codex: **“Ask api whether the schema is ready.”** Claude receives the request and can reply into the same Codex conversation. Both agents connect automatically. Names work across repositories on the same machine for the same OS user.
@@ -36,9 +36,9 @@ Open `ax inbox` in a third terminal or a terminal split to watch messages separa
 Grok, OpenCode, and Pi join the same exchange:
 
 ```sh
-ax grok -name reviewer
-ax opencode -name editor
-ax pi -name worker
+ax grok --name reviewer
+ax opencode --name editor
+ax pi --name worker
 ```
 
 ## Resume a conversation
@@ -46,8 +46,8 @@ ax pi -name worker
 AX reads the name option and passes other arguments to the native harness. Use the harness's resume syntax to continue an existing conversation:
 
 ```sh
-ax claude -name api -r "session-name"
-ax codex -name web resume "session-name"
+ax claude --name api -r "session-name"
+ax codex --name web resume "session-name"
 ```
 
 Launching the same AX name with no additional arguments resumes its saved conversation. See [usage and resume](claude.rc/README.md) for details.

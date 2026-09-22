@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -17,20 +18,96 @@ import (
 func TestLaunchArgsPreserveNativeSyntax(t *testing.T) {
 	for _, tc := range []struct{ args, native []string }{
 		{[]string{"--name", "api", "--resume", "session name", "--model", "sonnet"}, []string{"--resume", "session name", "--model", "sonnet"}},
-		{[]string{"resume", "session name", "-name=api", "-c", "model_reasoning_effort=\"low\"", "my prompt"}, []string{"resume", "session name", "-c", "model_reasoning_effort=\"low\"", "my prompt"}},
+		{[]string{"--name=api", "resume", "session name", "-c", "model_reasoning_effort=\"low\"", "my prompt"}, []string{"resume", "session name", "-c", "model_reasoning_effort=\"low\"", "my prompt"}},
 		{[]string{"--name=api", "--resume"}, []string{"--resume"}},
-		{[]string{"-name", "api", "--", "--name", "literal prompt"}, []string{"--", "--name", "literal prompt"}},
-		{[]string{"-name", "api", "--unknown-future-option", "value"}, []string{"--unknown-future-option", "value"}},
+		{[]string{"--name", "api", "--", "--name", "literal prompt"}, []string{"--", "--name", "literal prompt"}},
+		{[]string{"--name", "api", "--unknown-future-option", "value"}, []string{"--unknown-future-option", "value"}},
+		{[]string{"-n", "api", "--model", "sonnet"}, []string{"--model", "sonnet"}},
+		{[]string{"-n=api", "resume", "session name"}, []string{"resume", "session name"}},
+		{[]string{"-n", "api", "--", "-n", "literal prompt"}, []string{"--", "-n", "literal prompt"}},
+		// -name is an ordinary native argument now, not the AX name option.
+		{[]string{"-n", "api", "-name", "display"}, []string{"-name", "display"}},
 	} {
 		name, args, err := launchArgs(tc.args)
 		if err != nil || name != "api" || !reflect.DeepEqual(args, tc.native) {
 			t.Fatalf("%q: name=%q args=%q error=%v", tc.args, name, args, err)
 		}
 	}
-	for _, args := range [][]string{{"--name"}, {"--resume", "session"}, {"--name", "bad/name"}} {
+	for _, args := range [][]string{{"--name"}, {"-n"}, {"--resume", "session"}, {"--name", "bad/name"}, {"-n", "bad/name"}} {
 		if _, _, err := launchArgs(args); err == nil {
 			t.Fatalf("accepted %q", args)
 		}
+	}
+	// The removed spelling gets an error that names its replacement.
+	for _, args := range [][]string{{"-name", "api"}, {"-name=api"}, {"-name", "api", "-r", "s"}} {
+		_, _, err := launchArgs(args)
+		if err == nil || !strings.Contains(err.Error(), "-name is no longer the AX name option") {
+			t.Fatalf("%q: %v", args, err)
+		}
+	}
+}
+
+// Claude Code names its own sessions, so the AX name should reach it and show in
+// the prompt box, resume picker, and terminal title. A harness release without the
+// option must still launch.
+func TestLauncherForwardsAXNameToNativeDisplayName(t *testing.T) {
+	for _, tc := range []struct {
+		help string
+		want bool
+	}{
+		{"Options:\n  -n, --name <name>  Set a display name for this session\n", true},
+		{"Options:\n  -r, --resume [id]  Resume a conversation\n", false},
+		// A longer option that merely starts with the flag is not the flag.
+		{"Options:\n  --namespace <ns>  Unrelated\n", false},
+	} {
+		dir := startTestServer(t)
+		bin := testDir(t)
+		t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+		out := filepath.Join(bin, "claude.args")
+		script := "#!/bin/sh\nif [ \"$1\" = --help ]; then printf '%s' " + shellQuote(tc.help) + "; exit 0; fi\nprintf '%s\\0' \"$@\" > " + shellQuote(out) + "\n"
+		if err := os.WriteFile(filepath.Join(bin, "claude"), []byte(script), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := Launch(context.Background(), dir, "claude", []string{"--name", "api"}); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		argv := strings.Split(strings.TrimSuffix(string(data), "\x00"), "\x00")
+		i := slices.Index(argv, "--name")
+		got := i >= 0 && i+1 < len(argv) && argv[i+1] == "api"
+		if got != tc.want {
+			t.Fatalf("help %q: forwarded=%v want=%v argv=%q", tc.help, got, tc.want, argv)
+		}
+	}
+}
+
+// The probe is an optional lookup for a cosmetic option. A harness that stalls
+// on --help must not stall the launch, so the probe gives up and omits the name.
+func TestLauncherNameProbeCannotStallLaunch(t *testing.T) {
+	dir := startTestServer(t)
+	bin := testDir(t)
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	out := filepath.Join(bin, "claude.args")
+	script := "#!/bin/sh\nif [ \"$1\" = --help ]; then sleep 600; fi\nprintf '%s\\0' \"$@\" > " + shellQuote(out) + "\n"
+	if err := os.WriteFile(filepath.Join(bin, "claude"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	if err := Launch(context.Background(), dir, "claude", []string{"--name", "api"}); err != nil {
+		t.Fatal(err)
+	}
+	if waited := time.Since(start); waited > flagProbeTimeout+10*time.Second {
+		t.Fatalf("probe stalled the launch for %s", waited)
+	}
+	data, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(strings.Split(string(data), "\x00"), "--name") {
+		t.Fatal("forwarded a name the harness never advertised")
 	}
 }
 

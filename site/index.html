@@ -41,7 +41,7 @@
       <div class="terminal terminal-api">
         <div class="terminal-title"><span><span class="harness-mark claude-mark" aria-hidden="true">✳</span> Claude Code</span><span class="agent-tag">api <span class="status-dot"></span></span></div>
         <div class="terminal-content">
-          <p class="command"><span class="prompt">$</span> ax claude <span class="command-muted">-name</span> api</p>
+          <p class="command"><span class="prompt">$</span> ax claude <span class="command-muted">--name</span> api</p>
           <p class="terminal-muted">Connected as api.</p>
           <div class="message received beat-one"><span class="message-from">↳ web → api</span><p>Is the user schema ready?</p></div>
           <div class="message reply beat-two"><span class="message-from">api → web ↗</span><p>Ready. Use <code>id</code>, <code>email</code>, and <code>name</code>.</p></div>
@@ -51,7 +51,7 @@
       <div class="terminal terminal-web">
         <div class="terminal-title"><span><span class="harness-mark codex-mark" aria-hidden="true">›_</span> Codex CLI</span><span class="agent-tag">web <span class="status-dot"></span></span></div>
         <div class="terminal-content">
-          <p class="command"><span class="prompt">$</span> ax codex <span class="command-muted">-name</span> web</p>
+          <p class="command"><span class="prompt">$</span> ax codex <span class="command-muted">--name</span> web</p>
           <div class="message user-message"><span class="message-from">You</span><p>Ask api whether the schema is ready.</p></div>
           <div class="message received beat-three"><span class="message-from">web · back to work</span><p>Got the schema. I’ll use those fields in the form.</p></div>
         </div>
@@ -64,7 +64,7 @@
     <div class="section-intro"><p class="eyebrow">01 / Get connected</p><h2 id="setup-title">Two terminals.<br>That’s the setup.</h2><p>Pick a name for each session. Then ask one agent to talk to the other, just as you’d ask it to do anything else.</p><a class="text-link" href="/docs">Walk through the quickstart <span aria-hidden="true">↗</span></a></div>
     <ol class="setup-steps">
       <li><span class="step-number">01</span><div><h3>Install once</h3><p>Give your coding agent this prompt.</p><pre class="install-prompt"><code>Read https://useax.dev/agents.md and install Agent Exchange.</code></pre><a class="small-link" href="/docs/installation">Prefer to install it yourself? ↗</a></div></li>
-      <li><span class="step-number">02</span><div><h3>Name your sessions</h3><div class="command-pair"><div><span class="code-label">Terminal A</span><pre><code>ax claude -name api</code></pre></div><div><span class="code-label">Terminal B</span><pre><code>ax codex -name web</code></pre></div></div></div></li>
+      <li><span class="step-number">02</span><div><h3>Name your sessions</h3><div class="command-pair"><div><span class="code-label">Terminal A</span><pre><code>ax claude --name api</code></pre></div><div><span class="code-label">Terminal B</span><pre><code>ax codex --name web</code></pre></div></div></div></li>
       <li><span class="step-number">03</span><div><h3>Let them work together</h3><p class="ask-example">“Ask api whether the schema is ready.”</p><p>AX delivers the request. The other agent can reply into the same conversation.</p></div></li>
     </ol>
   </section>

@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -28,28 +29,54 @@ func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\\'
 func launchArgs(args []string) (string, []string, error) {
 	var name string
 	var native []string
+	legacy := false
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		if arg == "--" {
 			native = append(native, args[i:]...)
 			break
 		}
-		if arg == "--name" || arg == "-name" {
+		legacy = legacy || arg == "-name" || strings.HasPrefix(arg, "-name=")
+		if arg == "--name" || arg == "-n" {
 			if i+1 == len(args) {
 				return "", nil, errors.New("name needs a value")
 			}
 			i++
 			name = args[i]
-		} else if strings.HasPrefix(arg, "--name=") || strings.HasPrefix(arg, "-name=") {
+		} else if strings.HasPrefix(arg, "--name=") || strings.HasPrefix(arg, "-n=") {
 			name = strings.SplitN(arg, "=", 2)[1]
 		} else {
 			native = append(native, arg)
 		}
 	}
 	if !validName.MatchString(name) {
-		return "", nil, errors.New("choose an AX name with -name api")
+		// -name was the AX option through 0.6; it is now an ordinary native argument.
+		if legacy {
+			return "", nil, errors.New("-name is no longer the AX name option; use --name api or -n api")
+		}
+		return "", nil, errors.New("choose an AX name with --name api or -n api")
 	}
 	return name, native, nil
+}
+
+const flagProbeTimeout = 3 * time.Second
+
+// An older harness release may not have the option yet. Help output that is
+// missing, unreadable, or slow leaves the native name alone; the probe must not
+// be able to fail or stall a launch that would otherwise succeed.
+func advertisesFlag(ctx context.Context, bin, flag string) bool {
+	ctx, cancel := context.WithTimeout(ctx, flagProbeTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, bin, "--help")
+	// Cancelling signals the harness alone. Without a wait delay, a grandchild
+	// holding the output pipe keeps Output blocked past the timeout.
+	cmd.WaitDelay = time.Second
+	help, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	split := func(r rune) bool { return r == ' ' || r == '\t' || r == '\n' || r == ',' || r == '=' }
+	return slices.Contains(strings.FieldsFunc(string(help), split), flag)
 }
 
 func withAXOptions(native, options []string) []string {
@@ -227,6 +254,11 @@ func launch(ctx context.Context, dir, host string, args []string, spawnToken str
 		defer cleanup()
 		fmt.Fprintf(os.Stderr, "Agent Exchange · %s · %s\n", name, host)
 	}
+	// Show the AX name in the harness's own session UI. launchArgs already removed
+	// every user-supplied copy of the option, so this cannot pass it twice.
+	if flag := harnesses[host].nameFlag; flag != "" && advertisesFlag(ctx, nativeBin, flag) {
+		argv = append(argv, flag, name)
+	}
 	// Keep injected Codex configuration in the subcommand's option scope, where
 	// it survives resume alongside user-supplied subcommand config overrides.
 	argv = withAXOptions(nativeArgs, argv)
@@ -306,7 +338,7 @@ func Hook(dir, file string, in io.Reader) error {
 	}
 	if input.Session != s.Native {
 		if input.Event == "SessionStart" {
-			return fmt.Errorf("AX name %q belongs to conversation %s, but %s opened %s. Run ax %s -name %s to resume the saved conversation, or choose a new AX name for this one", s.Name, s.Native, s.Host, input.Session, s.Host, s.Name)
+			return fmt.Errorf("AX name %q belongs to conversation %s, but %s opened %s. Run ax %s --name %s to resume the saved conversation, or choose a new AX name for this one", s.Name, s.Native, s.Host, input.Session, s.Host, s.Name)
 		}
 		return nil
 	}
@@ -340,23 +372,24 @@ func Main(args []string) error {
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" {
 		fmt.Println(`Agent Exchange — connect your local coding agents.
 
-  ax claude -name api
-  ax codex -name web
-  ax grok -name reviewer
-  ax opencode -name editor
-  ax pi -name worker
+  ax claude --name api
+  ax codex --name web
+  ax grok --name reviewer
+  ax opencode --name editor
+  ax pi --name worker
 
-AX owns the name option. Other arguments go to the native harness.
-  ax claude -name api -r "session-name"
-  ax codex -name web resume "session-name"
-  ax grok -name reviewer -r "session-name"
-  ax opencode -name editor -s SESSION_ID
+AX owns the name option, --name or -n. Other arguments go to the native
+harness, which also receives the name when it can display one.
+  ax claude --name api -r "session-name"
+  ax codex --name web resume "session-name"
+  ax grok --name reviewer -r "session-name"
+  ax opencode --name editor -s SESSION_ID
 
 Ask either agent to message another by name.
 
   ax agents                     List local agents
   ax inbox [NAME]               Watch messages in a separate terminal
-  ax spawn codex -name worker   Open a named peer in a new terminal pane
+  ax spawn codex --name worker   Open a named peer in a new terminal pane
   ax spawn-status NAME          Inspect a previous pane launch
   ax status MESSAGE_ID          Inspect delivery receipts
   ax resolve MESSAGE_ID abandon Release a stuck message without redelivery
@@ -477,7 +510,7 @@ Ask either agent to message another by name.
 				return e
 			}
 			if len(agents) == 0 {
-				fmt.Println("No AX agents yet. Launch a named session with ax HARNESS -name NAME.")
+				fmt.Println("No AX agents yet. Launch a named session with ax HARNESS --name NAME.")
 			}
 			for _, a := range agents {
 				state := a.State

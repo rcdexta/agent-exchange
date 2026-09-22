@@ -19,15 +19,18 @@ import (
 // A harness owns session selection and native wake delivery. The broker and
 // messaging tools remain shared, independent of the harness's implementation.
 type harnessAdapter struct {
-	nativeLaunch     bool
-	toolPrefix       string
-	nativeID         func(string) bool
+	nativeLaunch bool
+	toolPrefix   string
+	nativeID     func(string) bool
+	// Native option that sets the harness's own session display name, when it has
+	// one. AX passes its name through so the agent is identifiable in native UI.
+	nameFlag         string
 	readyOnDiscovery bool
 	prepare          func(context.Context, string, string, string, Session, []string, []string, chan<- error) ([]string, []string, func(), error)
 }
 
 var harnesses = map[string]harnessAdapter{
-	"claude":   {toolPrefix: "mcp__ax__", nativeID: validNative},
+	"claude":   {toolPrefix: "mcp__ax__", nativeID: validNative, nameFlag: "--name"},
 	"codex":    {toolPrefix: "ax.", nativeID: validNative},
 	"grok":     {toolPrefix: "ax__", nativeID: validNative, readyOnDiscovery: true},
 	"opencode": {toolPrefix: "ax_", nativeID: regexp.MustCompile(`^ses_[a-zA-Z0-9]+$`).MatchString, readyOnDiscovery: true},

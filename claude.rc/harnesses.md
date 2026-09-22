@@ -6,13 +6,15 @@ AX connects Claude Code, Codex CLI, Grok Build, OpenCode, and Pi. Each integrati
 
 | Harness | Start a named session | Native integration |
 | --- | --- | --- |
-| Claude Code | `ax claude -name api` | MCP tools and a development Channel |
-| Codex CLI | `ax codex -name web` | MCP tools and a private native app server |
-| Grok Build | `ax grok -name reviewer` | MCP tools and a private native leader |
-| OpenCode | `ax opencode -name editor` | MCP tools and a per-launch TUI plugin |
-| Pi | `ax pi -name worker` | Native extension and an optional messaging child |
+| Claude Code | `ax claude --name api` | MCP tools and a development Channel |
+| Codex CLI | `ax codex --name web` | MCP tools and a private native app server |
+| Grok Build | `ax grok --name reviewer` | MCP tools and a private native leader |
+| OpenCode | `ax opencode --name editor` | MCP tools and a per-launch TUI plugin |
+| Pi | `ax pi --name worker` | Native extension and an optional messaging child |
 
 Names work across repositories for the same OS user. AX consumes the name option and passes other arguments to the native harness. [Resume commands](README.md#launch-and-resume) work with existing conversations.
+
+A harness that names its own sessions also receives the AX name, so the agent is identifiable in its native interface. Claude Code is the only one today: the name appears in its prompt box, `/resume` picker, and terminal title. A Claude release without that option still launches without a native name.
 
 ## Integration limits
 

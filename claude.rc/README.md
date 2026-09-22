@@ -5,23 +5,23 @@ Install the native harnesses you want to use and sign in normally. [Install the 
 ## Launch and resume
 
 ```sh
-ax claude -name api
-ax codex -name web
-ax grok -name reviewer
-ax opencode -name editor
-ax pi -name worker
+ax claude --name api
+ax codex --name web
+ax grok --name reviewer
+ax opencode --name editor
+ax pi --name worker
 ```
 
 Names are shared across repositories on your machine, for your OS user. Choose a unique name for each conversation. Ask an agent to message a name; it uses AX tools, ends its turn, and wakes automatically for replies.
 
-AX consumes the name option and forwards other arguments to the harness. Native resume syntax still works:
+AX consumes the name option, `--name` or `-n`, and forwards every other argument to the harness. A harness that displays its own session name receives the AX name too. Native resume syntax still works:
 
 ```sh
-ax claude -name api -r "session-name"
-ax codex -name web resume "session-name"
-ax grok -name reviewer -r "session-name"
-ax opencode -name editor -s SESSION_ID
-ax pi -name worker -r
+ax claude --name api -r "session-name"
+ax codex --name web resume "session-name"
+ax grok --name reviewer -r "session-name"
+ax opencode --name editor -s SESSION_ID
+ax pi --name worker -r
 ```
 
 Launching the same AX name with no native arguments resumes its saved conversation. Supplying native arguments leaves selection to the native harness. AX rejects a different conversation under an already bound name. Close the old terminal before adopting its conversation through AX.
