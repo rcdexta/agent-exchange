@@ -162,7 +162,7 @@ func launch(ctx context.Context, dir, host string, args []string, spawnToken str
 	}
 	s.SpawnToken = ""
 	s.Terminal = detectTerminal()
-	s.Workspace = cwd
+	s.Workspace, s.Mesh = cwd, mesh
 	s.Started = false // This launch must receive its own native SessionStart.
 	if s.ClaudePending != "" && !missingClaudeTranscript(s.ClaudePending) {
 		s.ClaudePending = ""
