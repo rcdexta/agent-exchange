@@ -41,6 +41,9 @@ type sendReceipt struct {
 func agentSnapshot(p *peer) Agent {
 	a := p.Agent
 	a.Online = p.conn != nil && time.Since(p.seen) <= 15*time.Second
+	if a.State == "exited" {
+		return a
+	}
 	if a.BindingError != "" {
 		a.State = "binding-conflict"
 		return a
@@ -83,6 +86,8 @@ func deliveryEvidence(state string) string {
 func queueReason(to, from *peer) string {
 	snapshot := agentSnapshot(to)
 	switch {
+	case snapshot.State == "exited":
+		return "Recipient session has exited; mail waits for its next AX launch, subject to expiration."
 	case to.Policy != "accept":
 		return "Recipient policy is " + to.Policy + "."
 	case snapshot.State == "unstarted":
@@ -103,14 +108,18 @@ func queueReason(to, from *peer) string {
 }
 
 func (b *broker) sendResult(q interface{ QueryRow(string, ...any) *sql.Row }, m Message, key string) (Message, error) {
-	r := &sendReceipt{ClientID: key, At: time.Now().UnixMilli(), Recipient: agentSnapshot(b.peers[m.Recipient]),
+	to, err := b.messagePeer(q, m.Recipient)
+	if err != nil {
+		return m, err
+	}
+	r := &sendReceipt{ClientID: key, At: time.Now().UnixMilli(), Recipient: agentSnapshot(to),
 		Acknowledged: m.State == "acknowledged", Evidence: deliveryEvidence(m.State), TaskCompletion: "unknown"}
 	if err := q.QueryRow(`SELECT coalesce(sum(state='queued'),0), count(*) FROM messages
  WHERE recipient=? AND state NOT IN ('acknowledged','expired','refused','abandoned')`, m.Recipient).Scan(&r.Queued, &r.Pending); err != nil {
 		return m, err
 	}
 	if m.State == "queued" {
-		r.Evidence += " " + queueReason(b.peers[m.Recipient], b.peers[m.Sender.ID])
+		r.Evidence += " " + queueReason(to, b.peers[m.Sender.ID])
 	}
 	m.Receipt = r
 	return m, nil
@@ -152,8 +161,8 @@ func (b *broker) pending(p *peer, after int64) (pendingPage, error) {
 	if err != nil && err != sql.ErrNoRows {
 		return out, err
 	}
-	rows, err := b.db.Query(`SELECT data,state FROM messages WHERE recipient=? AND seq>?
- AND state NOT IN ('acknowledged','expired','refused','abandoned') ORDER BY seq LIMIT ?`, p.ID, after, pendingPageSize+1)
+	rows, err := b.db.Query(`SELECT m.data,m.state,a.data FROM messages m JOIN agents a ON a.id=m.sender WHERE m.recipient=? AND m.seq>?
+ AND m.state NOT IN ('acknowledged','expired','refused','abandoned') ORDER BY m.seq LIMIT ?`, p.ID, after, pendingPageSize+1)
 	if err != nil {
 		return out, err
 	}
@@ -163,9 +172,9 @@ func (b *broker) pending(p *peer, after int64) (pendingPage, error) {
 			out.Next = out.Messages[len(out.Messages)-1].Seq
 			break
 		}
-		var data, state string
+		var data, state, senderData string
 		var m Message
-		if err = rows.Scan(&data, &state); err != nil {
+		if err = rows.Scan(&data, &state, &senderData); err != nil {
 			return out, err
 		}
 		if err = json.Unmarshal([]byte(data), &m); err != nil {
@@ -173,6 +182,12 @@ func (b *broker) pending(p *peer, after int64) (pendingPage, error) {
 		}
 		item := pendingMessage{ID: m.ID, Sender: pendingSender{m.Sender.ID, m.Sender.Name, m.Sender.Host}, Seq: m.Seq, Parent: m.Parent, Age: max(0, (out.At-m.Created)/1000), Expires: m.Expires, State: state, Evidence: deliveryEvidence(state)}
 		sender := b.peers[m.Sender.ID]
+		if sender == nil {
+			sender = &peer{}
+			if err = json.Unmarshal([]byte(senderData), &sender.Agent); err != nil {
+				return out, err
+			}
+		}
 		if state != "queued" && p.Policy == "accept" && safe(p) && sender != nil && safe(sender) {
 			preview := []rune(m.Text)
 			item.Preview = string(preview[:min(len(preview), 100)])
