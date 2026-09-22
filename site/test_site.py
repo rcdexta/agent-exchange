@@ -49,9 +49,11 @@ for path, page in pages.items():
         checked += 1
 
 assert (DIST / 'agents.md').read_bytes() == (ROOT.parent / 'AGENTS.md').read_bytes()
+assert (DIST / 'install.sh').read_bytes() == (ROOT.parent / 'install.sh').read_bytes()
 for slug in ('pi', 'inbox', 'resource-safety', 'spawning'):
     assert '<strong>Unreleased.</strong>' not in (DIST / f'docs/{slug}.html').read_text()
 assert 'text/markdown' in (DIST / '_headers').read_text()
+assert '/install.sh\n  Content-Type: text/plain; charset=utf-8' in (DIST / '_headers').read_text()
 assert '/AGENTS.md /agents.md 301' in (DIST / '_redirects').read_text()
 assert 'Page not found' in (DIST / '404.html').read_text()
 assert '/docs/pi' in (DIST / 'index.html').read_text()

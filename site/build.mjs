@@ -49,6 +49,7 @@ md.renderer.rules.table_close = () => '</table></div>\n';
 await rm(output, { recursive: true, force: true });
 await mkdir(new URL('docs/', output), { recursive: true });
 await copyFile(new URL('AGENTS.md', root), new URL('agents.md', output));
+await copyFile(new URL('install.sh', root), new URL('install.sh', output));
 for (const file of ['_headers', '_redirects', 'style.css', 'site.js', 'favicon.svg']) {
   await copyFile(new URL(file, import.meta.url), new URL(file, output));
 }
@@ -75,4 +76,4 @@ for (const page of pages) {
   await writeFile(new URL(page.slug ? `docs/${page.slug}.html` : 'docs/index.html', output), shell(page.title, page.description, docPath(page), body));
 }
 await writeFile(new URL('404.html', output), shell('Page not found', 'Find your way back to Agent Exchange.', '/404', '<main id="main" class="not-found wrap"><p class="eyebrow">404 / No connection here</p><h1>This page wandered off.</h1><p>The docs are a good place to pick up the thread.</p><a class="button primary" href="/docs">Open the docs <span aria-hidden="true">↗</span></a></main>'));
-console.log(`Built landing page, ${pages.length} docs pages, and canonical agents.md.`);
+console.log(`Built landing page, ${pages.length} docs pages, canonical agents.md, and install.sh.`);
