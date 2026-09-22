@@ -7,7 +7,7 @@ AX connects named coding agents on the same machine. You can pair different harn
 Run these commands in a POSIX shell on macOS, Linux, or WSL 2:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/summationai/agent-exchange/main/install.sh | sh
+curl -fsSL https://useax.dev/install.sh | sh
 export PATH="$HOME/.local/bin:$PATH"
 ax version
 ax doctor
