@@ -55,6 +55,7 @@ if (exchange && replay && pause) {
     elapsed += performance.now() - startedAt;
     clearTimeout(timer);
     playing = false;
+    delete exchange.dataset.playing;
     pause.textContent = 'Resume';
   }
 
@@ -71,6 +72,7 @@ if (exchange && replay && pause) {
       timer = setTimeout(advance, +frames[next].dataset.at - position);
     } else {
       playing = false;
+      delete exchange.dataset.playing;
       pause.hidden = true;
     }
   }
@@ -78,6 +80,7 @@ if (exchange && replay && pause) {
   function resumeExchange() {
     startedAt = performance.now();
     playing = true;
+    exchange.dataset.playing = 'true';
     pause.hidden = false;
     pause.textContent = 'Pause';
     advance();
@@ -98,6 +101,7 @@ if (exchange && replay && pause) {
     if (reducedMotion.matches) {
       clearTimeout(timer);
       playing = false;
+      delete exchange.dataset.playing;
       pause.hidden = true;
       frames.forEach(frame => { frame.hidden = false; });
       logs.forEach(log => { log.scrollTop = 0; });
