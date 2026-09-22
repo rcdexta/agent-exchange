@@ -466,6 +466,26 @@ func TestResumeWaitsForHostTools(t *testing.T) {
 	}
 }
 
+func TestDiscoveryOrderIsStableAndLeadsWithLivePeers(t *testing.T) {
+	b, _ := localBroker(t)
+	endpoint(t, b, "delta", testMesh)
+	_, alpha, _ := endpoint(t, b, "alpha", testMesh)
+	_, charlie, _ := endpoint(t, b, "charlie", testMesh)
+	endpoint(t, b, "bravo", testMesh)
+	b.disconnect(alpha)
+	b.disconnect(charlie)
+	want := []string{"bravo", "delta", "alpha", "charlie"}
+	for attempt := 0; attempt < 8; attempt++ {
+		var got []string
+		for _, a := range b.list() {
+			got = append(got, a.Name)
+		}
+		if strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Fatalf("attempt %d: got %v, want %v", attempt, got, want)
+		}
+	}
+}
+
 func TestEnrollRefreshesMeshAfterMove(t *testing.T) {
 	b, dir := localBroker(t)
 	s, _, _ := endpoint(t, b, "rover", testMesh)

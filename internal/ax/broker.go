@@ -1,6 +1,7 @@
 package ax
 
 import (
+	"cmp"
 	"context"
 	"crypto/subtle"
 	"database/sql"
@@ -12,6 +13,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -607,11 +610,23 @@ func (b *broker) request(c *serverConn, method string, params json.RawMessage) (
 func validNative(id string) bool {
 	return regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`).MatchString(id)
 }
+
+// Offline records accumulate and are never pruned, so a map's order can bury a
+// live peer among them. Lead with the peers a caller can actually reach.
 func (b *broker) list() []Agent {
 	out := []Agent{}
 	for _, p := range b.peers {
 		out = append(out, agentSnapshot(p))
 	}
+	rank := func(a Agent) int {
+		if a.Online {
+			return 0
+		}
+		return 1
+	}
+	slices.SortFunc(out, func(x, y Agent) int {
+		return cmp.Or(rank(x)-rank(y), strings.Compare(x.Name, y.Name))
+	})
 	return out
 }
 func (b *broker) resolve(target string) (*peer, error) {
