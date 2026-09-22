@@ -54,7 +54,7 @@ Launching the same AX name without additional arguments resumes its saved conver
 
 ## Updating running sessions
 
-Installing a new binary does not replace a running broker or bridge. New features need the new broker as well as relaunched sessions. To finish an update from 0.5.x:
+Installing a new binary does not replace a running broker or bridge. New features need the new broker as well as relaunched sessions. To finish an update from an earlier release:
 
 1. Let active work finish and close the AX-launched sessions normally. Keep their names for resume.
 2. Identify the current user's `ax serve` process that owns the socket in the relevant AX state directory, using the system's process and socket inspection tools. The default socket is `$HOME/.ax/broker.sock`; `AX_HOME` selects another directory.
@@ -63,13 +63,15 @@ Installing a new binary does not replace a running broker or bridge. New feature
 
 Saved conversations and mail are preserved. Version 0.6.1 upgrades the mailbox to schema 3; an older broker cannot open that upgraded mailbox. Do not downgrade the broker against it.
 
+In AX 0.7.0, replace the old `-name` option in saved commands with `-n`, for example `ax claude -n api`. Keep the same agent name to retain its identity and saved conversation.
+
 ## Optional installation settings
 
 Download the installer first to inspect it or select a release:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/summationai/agent-exchange/main/install.sh -o install-ax.sh
-AX_VERSION=v0.6.1 sh install-ax.sh
+AX_VERSION=v0.7.0 sh install-ax.sh
 ```
 
 `AX_INSTALL_DIR` chooses another binary directory. `AX_NO_MODIFY_PATH=1` disables changes to shell configuration. Set these variables on the `sh install-ax.sh` invocation. With a custom directory, add that directory to PATH before running AX.

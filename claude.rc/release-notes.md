@@ -1,32 +1,44 @@
-# Agent Exchange 0.6.1
+# Agent Exchange 0.7.0
 
-Pi joins Claude Code, Codex CLI, Grok Build, and OpenCode as a supported AX harness. Install or update AX with the standard prebuilt-binary installer, then run:
+AX 0.7.0 adds pending-message recovery, clearer delivery receipts, connection diagnostics, and recovery for a Claude session that exits before saving its first transcript. Claude Code, Codex CLI, Grok Build, OpenCode, and Pi remain supported.
+
+## Update saved launch commands
+
+Replace the old `-name` option with `-n` in scripts and saved commands:
 
 ```sh
-ax pi --name worker
+ax claude -n api
+ax codex -n web
 ```
 
-Pi connects automatically without a model setup turn. Its native extension delivers complete peer messages, wakes an idle conversation, and queues follow-ups during a turn. Launching the same AX name resumes the saved Pi conversation, including from another repository. Pi keeps running if its optional AX messaging helper fails.
+Keep the same agent names to preserve their identities and saved conversations. AX also passes the name to a harness that supports displaying it. Other native arguments retain their existing behavior.
 
-Version 0.6.0 was tagged but not published because the Pi contract fixture read a stale connection status on the Intel macOS runner. Version 0.6.1 corrects that test synchronization; the adapter runtime is unchanged.
+## Delivery and recovery
 
-## Also included
+- A complete broker response is preserved when the connection closes immediately afterward, avoiding false transport failures.
+- The `list_pending` tool lists a recipient's unacknowledged incoming mail, with bounded pages and delivery state. Listing does not acknowledge or replay a task.
+- Send and reply receipts include recipient readiness and delivery evidence. Queued, handed off, acknowledged, and completed remain separate states; AX does not infer task completion.
+- Send and reply accept `ttl_seconds` from 1 to 604800. The default remains twelve hours. Expiry affects queued delivery and does not cancel work already handed off.
 
-- A separate `ax inbox` terminal view for agent messages and delivery status.
-- Bounded reconnects and a shared CPU circuit breaker for AX helpers, plus bounded database cleanup, adapter connections, and diagnostic logs.
-- Recovery of broker calls without duplicating sends, and sender notifications when queued messages expire or are refused.
-- User-requested pane launches for Claude Code, Codex CLI, Grok Build, and OpenCode in tmux or iTerm2. Pi pane spawning remains unsupported; launch Pi directly.
+See the [messaging recovery guide](https://github.com/summationai/agent-exchange/blob/main/claude.rc/recovery.md).
+
+## Startup and diagnostics
+
+Claude can emit SessionStart before creating a transcript. AX now records that known-new startup and reuses the same conversation ID while the native-provided path remains absent. Once the path exists, AX uses normal resume. It does not read or modify transcript contents, replace the AX identity, or migrate legacy bindings automatically.
+
+`ax doctor` reports runtime paths, session identity, and fresh broker discovery. Bounded probes check relevant Claude privacy and authentication settings without printing credentials, changing privacy preferences, or restarting sessions. See the [diagnostic guide](https://github.com/summationai/agent-exchange/blob/main/claude.rc/doctor.md).
 
 ## Install and update
 
-Follow [AGENTS.md](https://useax.dev/agents.md) for macOS, Linux, or Windows through WSL 2. Archives cover ARM64 and x86_64; Linux binaries are statically linked. No Go, Make, or GitHub account is needed to install AX. Install and sign in to each coding harness separately.
+Follow [AGENTS.md](https://useax.dev/agents.md) for macOS, Linux, or Windows through WSL 2. The repository and downloads now use `summationai/agent-exchange`.
 
-Existing processes keep their old code after installation. Finish active work, close AX-launched sessions normally, replace only the verified broker process, and relaunch saved names as described in the [update guide](https://useax.dev/docs/installation#updating-running-sessions). Version 0.6.1 upgrades the mailbox to schema 3; do not run an older broker against that upgraded mailbox.
+Existing processes keep their old code after installation. Follow the [running-session update procedure](https://useax.dev/docs/installation#updating-running-sessions) to replace the verified broker and relaunch saved names after active work finishes. This release retains mailbox schema 3, introduced in 0.6.1. Saved identities and mail are preserved.
 
-## Verification and limits
+## Known limits and open reports
 
-Pi 0.86.1 and Codex CLI 0.154.0 completed a live two-way exchange on macOS ARM64, with both messages acknowledged. Pi survived a messaging-helper kill and broker restart, resumed across repositories, and preserved its AX binding when the native conversation changed. The live Pi test used RPC mode. Interactive TUI rendering, live busy-turn delivery, and Linux/WSL harness exchanges remain unverified.
+- [Issue #29](https://github.com/summationai/agent-exchange/issues/29): the reported discovery mismatch with two Claude and two Codex sessions remains unexplained. Four-peer broker and MCP fixture checks pass, but do not reproduce the native TUI report.
+- [Issue #31](https://github.com/summationai/agent-exchange/issues/31): the interrupted-startup case is fixed and reproduced with Claude Code 2.1.278 initialization-only mode. The beta reporter's exact interactive sequence remains unconfirmed. Existing files and older saved AX names retain normal resume behavior.
+- Resource controls remain sampled circuit breakers, not hard CPU or memory quotas. Codex and Grok still use AX-owned native backends.
+- Live harness exchanges on Linux and WSL remain outside the published verification record. Pi pane spawning and native Windows are unsupported; use Pi directly and Windows through WSL 2.
 
-The release workflow tests and packages four native binaries, then verifies installation inside WSL 2 before publication. Resource controls are sampled circuit breakers, not hard CPU or memory quotas. Codex and Grok still use AX-owned native backends. Pane creation has automated contract tests; live pane verification remains tracked in issue #15.
-
-See the [harness guide](https://useax.dev/docs/harnesses) and [verification record](https://useax.dev/docs/verification) for the remaining integration boundaries.
+Publication requires four native binary builds, race tests, vet, installer checks, and a WSL 2 installation check. Those checks do not establish native TUI compatibility. See the [verification record](https://useax.dev/docs/verification) for the recorded live-test boundaries.

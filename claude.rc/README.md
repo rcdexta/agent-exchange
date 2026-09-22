@@ -26,7 +26,7 @@ ax pi --name worker -r
 
 Launching the same AX name with no native arguments resumes its saved conversation. Supplying native arguments leaves selection to the native harness. AX rejects a different conversation under an already bound name. Close the old terminal before adopting its conversation through AX.
 
-**Unreleased startup recovery:** Claude can run its startup hook before saving a conversation. If that new session
+**Claude startup recovery, added in AX 0.7.0:** Claude can run its startup hook before saving a conversation. If that new session
 exits before its transcript is created, AX remembers the pending startup and uses
 the same conversation ID on the next launch. Once the transcript exists, AX uses
 normal resume. AX checks only the path supplied by Claude's hook, never transcript
