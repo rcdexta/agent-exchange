@@ -202,22 +202,33 @@ func (c *client) callContext(ctx context.Context, method string, args any, out a
 		c.close()
 		return &transportError{cause: e, submitted: true}
 	}
+	var p packet
+	var stopped error
 	select {
-	case p := <-ch:
-		if p.Error != nil {
-			return p.Error
-		}
-		if out != nil {
-			if err := json.Unmarshal(p.Result, out); err != nil {
-				c.close()
-				return &transportError{cause: err, submitted: true}
-			}
-		}
-		return nil
+	case p = <-ch:
 	case <-c.done:
-		return &transportError{cause: errors.New("broker connection closed"), submitted: true}
+		stopped = errors.New("broker connection closed")
 	case <-ctx.Done():
 		c.close()
-		return &transportError{cause: ctx.Err(), submitted: true}
+		stopped = ctx.Err()
 	}
+	if stopped != nil {
+		// The reader can queue a complete response and then observe EOF before
+		// this goroutine runs. Preserve that known outcome over a close/deadline.
+		select {
+		case p = <-ch:
+		default:
+			return &transportError{cause: stopped, submitted: true}
+		}
+	}
+	if p.Error != nil {
+		return p.Error
+	}
+	if out != nil {
+		if err := json.Unmarshal(p.Result, out); err != nil {
+			c.close()
+			return &transportError{cause: err, submitted: true}
+		}
+	}
+	return nil
 }
