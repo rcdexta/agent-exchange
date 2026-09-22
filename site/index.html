@@ -28,44 +28,75 @@
         <p>AX’s broker and mailbox run on your machine. No cloud relay or telemetry.</p>
         <p class="provider-note">Your agents still send content to their AI providers.</p>
       </div>
-      <a class="text-link hero-more" href="#how-it-works">See how it works <span aria-hidden="true">↓</span></a>
     </div>
     <div class="hero-connect">
     <section class="install-card" aria-labelledby="install-title">
-      <div class="install-heading"><h2 id="install-title">Install with your agent</h2><a href="/agents.md">agents.md ↗</a></div>
-      <pre class="install-prompt" data-copy-label="Copy agents.md"><code>Read https://useax.dev/agents.md and install Agent Exchange.</code></pre>
-      <p class="install-hint">Paste into your agent. <a href="/docs/installation">Or install it yourself ↗</a></p>
+      <div class="install-heading"><h2 id="install-title">Install AX</h2><a href="/agents.md">Read agents.md ↗</a></div>
+      <h3>With your agent</h3>
+      <pre class="install-prompt" data-copy-label="Copy agents.md" data-copy-source="agent-install-guide"><code>Read https://useax.dev/agents.md and install Agent Exchange.</code></pre>
+      <p class="install-hint">Copy the full guide into your agent, or paste the prompt above.</p>
+      <div class="install-manual">
+        <h3>Or in your terminal</h3>
+        <pre class="install-command" data-copy-label="Copy command"><code>curl -fsSL https://useax.dev/install.sh | sh</code></pre>
+        <p class="install-hint">macOS, Linux, and WSL 2. <a href="/docs/installation">Installation guide ↗</a></p>
+      </div>
+      <textarea id="agent-install-guide" class="install-guide" aria-label="Full AX installation guide" readonly hidden>{{AGENTS_MD}}</textarea>
     </section>
-    <div class="exchange" aria-label="Illustration of a message exchange between Claude and Codex">
-      <div class="exchange-top"><span class="eyebrow">Two agents. One exchange.</span><button class="replay" type="button" data-replay hidden>↻ Replay</button></div>
-      <div class="terminal terminal-api">
-        <div class="terminal-title"><span><span class="harness-mark claude-mark" aria-hidden="true">✳</span> Claude Code</span><span class="agent-tag">api <span class="status-dot"></span></span></div>
-        <div class="terminal-content">
-          <p class="command"><span class="prompt">$</span> ax claude <span class="command-muted">--name</span> api</p>
-          <p class="terminal-muted">Connected as api.</p>
-          <div class="message received beat-one"><span class="message-from">↳ web → api</span><p>Is the user schema ready?</p></div>
-          <div class="message reply beat-two"><span class="message-from">api → web ↗</span><p>Ready. Use <code>id</code>, <code>email</code>, and <code>name</code>.</p></div>
-        </div>
+    <div class="exchange" id="exchange" aria-label="Illustration of Codex and Claude exchanging messages in two iTerm-style panes">
+      <div class="iterm-titlebar">
+        <span class="terminal-controls" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="iterm-title">~/project — iTerm2</span>
+        <span class="replay-controls"><button class="replay" type="button" data-pause hidden>Pause</button><button class="replay" type="button" data-replay hidden>↻ Replay</button></span>
       </div>
-      <div class="exchange-wire" aria-hidden="true"><span class="wire-line"></span><span class="wire-label">ax <span>⇄</span></span><span class="wire-line"></span><span class="wire-caption">same machine · different terminals</span></div>
-      <div class="terminal terminal-web">
-        <div class="terminal-title"><span><span class="harness-mark codex-mark" aria-hidden="true">›_</span> Codex CLI</span><span class="agent-tag">web <span class="status-dot"></span></span></div>
-        <div class="terminal-content">
-          <p class="command"><span class="prompt">$</span> ax codex <span class="command-muted">--name</span> web</p>
-          <div class="message user-message"><span class="message-from">You</span><p>Ask api whether the schema is ready.</p></div>
-          <div class="message received beat-three"><span class="message-from">web · back to work</span><p>Got the schema. I’ll use those fields in the form.</p></div>
-        </div>
+      <div class="terminal-pair">
+        <article class="terminal terminal-web" aria-label="Codex CLI pane, named web">
+          <div class="terminal-title">web · ax codex -n web</div>
+          <div class="terminal-content">
+            <div class="terminal-log" role="region" tabindex="0" aria-label="Codex conversation transcript">
+              <div class="harness-header codex-header"><strong>›_ OpenAI Codex</strong><span>~/project</span></div>
+              <p class="terminal-user">› Build signup. Coordinate with api.</p>
+              <div class="terminal-tool" data-at="800"><p>• Called <span>ax.send_message</span></p><p class="tool-detail">└ to: api<br>&nbsp; Which signup fields?</p></div>
+              <p class="terminal-received" data-at="5400">• <span>api:</span> email, password.</p>
+              <div class="terminal-tool" data-at="7600"><p>• Called <span>ax.send_message</span></p><p class="tool-detail">└ to: api<br>&nbsp; Any password rules?</p></div>
+              <p class="terminal-received" data-at="12400">• <span>api:</span> at least 12 characters.</p>
+              <div data-at="14600"><p class="terminal-result">• Form and validation are ready.</p><div class="terminal-tool"><p>• Called <span>ax.send_message</span></p><p class="tool-detail">└ to: api<br>&nbsp; Ready for a review.</p></div></div>
+              <p class="terminal-received" data-at="19600">• <span>api:</span> looks good. Handle 409 for an email already in use.</p>
+              <div data-at="21700"><p class="terminal-result">• Added the error. Tests pass.</p><div class="terminal-tool"><p>• Called <span>ax.send_message</span></p><p class="tool-detail">└ to: api<br>&nbsp; 409 handled. UI tests pass.</p></div></div>
+              <div data-at="26800"><p class="terminal-received">• <span>api:</span> API tests pass too.</p><p class="terminal-result">• Signup is ready.</p></div>
+            </div>
+            <div class="terminal-input" aria-hidden="true">› <span class="terminal-cursor"></span></div>
+          </div>
+        </article>
+        <article class="terminal terminal-api" aria-label="Claude Code pane, named api">
+          <div class="terminal-title">api · ax claude -n api</div>
+          <div class="terminal-content">
+            <div class="terminal-log" role="region" tabindex="0" aria-label="Claude conversation transcript">
+              <div class="harness-header claude-header"><span class="claude-pixel" aria-hidden="true">▐▛███▜▌<br>▝▜█████▛▘<br>&nbsp; ▘▘ ▝▝</span><span><strong>Claude Code</strong><span>~/project</span></span></div>
+              <div class="terminal-received" data-at="2200"><p class="channel-label">← ax · message from web</p><p>Which signup fields?</p></div>
+              <div class="terminal-tool" data-at="4000"><p>● <span>ax.reply</span></p><p class="tool-detail">└ email, password.</p></div>
+              <div class="terminal-received" data-at="9000"><p class="channel-label">← ax · message from web</p><p>Any password rules?</p></div>
+              <div class="terminal-tool" data-at="10800"><p>● <span>ax.reply</span></p><p class="tool-detail">└ At least 12 characters.</p></div>
+              <div class="terminal-received" data-at="16000"><p class="channel-label">← ax · message from web</p><p>Ready for a review.</p></div>
+              <div data-at="18000"><p class="terminal-result">● Checked the signup form.</p><div class="terminal-tool"><p>● <span>ax.reply</span></p><p class="tool-detail">└ Looks good. Handle 409 for an email already in use.</p></div></div>
+              <div class="terminal-received" data-at="23300"><p class="channel-label">← ax · message from web</p><p>409 handled. UI tests pass.</p></div>
+              <div data-at="25100"><p class="terminal-result">● API tests pass too.</p><div class="terminal-tool"><p>● <span>ax.reply</span></p><p class="tool-detail">└ API tests pass too.</p></div></div>
+            </div>
+            <div class="terminal-input" aria-hidden="true">❯ <span class="terminal-cursor"></span></div>
+          </div>
+        </article>
       </div>
-      <p class="demo-caption">An illustrative exchange. Your agents set the pace.</p>
+      <p class="demo-caption">Illustrative exchange · scroll either pane to read back</p>
     </div>
     </div>
   </section>
   <section class="section wrap getting-started" id="how-it-works" aria-labelledby="setup-title">
-    <div class="section-intro"><p class="eyebrow">01 / Get connected</p><h2 id="setup-title">Two terminals.<br>That’s the setup.</h2><p>Pick a name for each session. Then ask one agent to talk to the other, just as you’d ask it to do anything else.</p><a class="text-link" href="/docs">Walk through the quickstart <span aria-hidden="true">↗</span></a></div>
+    <div class="section-intro"><p class="eyebrow">01 / Try a workflow</p><h2 id="setup-title">Three agents.<br>One handoff.</h2><p>Claude builds the API. OpenCode builds the UI. Grok reviews the changes. Give each a name so they can coordinate across their own sessions.</p><a class="text-link" href="/docs">Walk through the quickstart <span aria-hidden="true">↗</span></a></div>
     <ol class="setup-steps">
-      <li><span class="step-number">01</span><div><h3>Install once</h3><p>Give your coding agent this prompt.</p><pre class="install-prompt"><code>Read https://useax.dev/agents.md and install Agent Exchange.</code></pre><a class="small-link" href="/docs/installation">Prefer to install it yourself? ↗</a></div></li>
-      <li><span class="step-number">02</span><div><h3>Name your sessions</h3><div class="command-pair"><div><span class="code-label">Terminal A</span><pre><code>ax claude --name api</code></pre></div><div><span class="code-label">Terminal B</span><pre><code>ax codex --name web</code></pre></div></div></div></li>
-      <li><span class="step-number">03</span><div><h3>Let them work together</h3><p class="ask-example">“Ask api whether the schema is ready.”</p><p>AX delivers the request. The other agent can reply into the same conversation.</p></div></li>
+      <li><span class="step-number">01</span><div><h3>Install from your terminal</h3><pre><code>curl -fsSL https://useax.dev/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+ax doctor</code></pre><a class="small-link" href="/docs/installation">Platform requirements and setup ↗</a></div></li>
+      <li><span class="step-number">02</span><div><h3>Give each agent a role</h3><p>Run each command in a separate terminal.</p><div class="command-pair"><div><span class="code-label">Claude Code · API</span><pre><code>ax claude -n api</code></pre></div><div><span class="code-label">OpenCode · UI</span><pre><code>ax opencode -n web</code></pre></div><div><span class="code-label">Grok Build · Review</span><pre><code>ax grok -n reviewer</code></pre></div></div></div></li>
+      <li><span class="step-number">03</span><div><h3>Ask OpenCode to coordinate</h3><p class="ask-example">“Ask api for the response format. Build the UI, then ask reviewer to check your changes.”</p><p>OpenCode gets the API details from Claude and sends its changes to Grok for review. Replies return to the same sessions.</p></div></li>
     </ol>
   </section>
   <section class="principles-section"><div class="wrap">
@@ -76,6 +107,14 @@
       <article><span class="feature-glyph" aria-hidden="true">⌘</span><h3>Your permissions still apply</h3><p>A delegated task keeps its scope. The receiving harness’s sandbox and tool approval controls still decide what can run.</p><a href="/docs/sessions#permissions-and-delegation">Understand delegation <span aria-hidden="true">↗</span></a></article>
     </div>
   </div></section>
+  <section class="section wrap tool-fit" aria-labelledby="fit-title">
+    <div class="demo-intro"><div><p class="eyebrow">Where AX fits</p><h2 id="fit-title">Your agents do the work.<br>AX carries the messages.</h2></div><p>Already using OpenCode or a terminal workspace like Herdr? Here’s the part each tool handles.</p></div>
+    <div class="fit-grid">
+      <article><p class="eyebrow">Coding agent</p><h3><a href="https://opencode.ai/docs/agents/">OpenCode ↗</a></h3><p>Writes and reviews code, with primary agents and subagents inside OpenCode.</p><p>AX lets an OpenCode session exchange tasks and replies with named Claude, Codex, Grok, and Pi sessions.</p></article>
+      <article><p class="eyebrow">Terminal workspace</p><h3><a href="https://herdr.dev/docs/agent-automation/">Herdr ↗</a></h3><p>Organizes workspaces and panes, tracks agent state, and provides controls for automating agents.</p><p>AX focuses on addressing messages to agents by name, storing them locally, and tracking delivery.</p></article>
+      <article class="fit-ax"><p class="eyebrow">Messages between sessions</p><h3>Agent Exchange</h3><p>Connects independent coding sessions across supported harnesses on your machine.</p><p>Ask one agent to contact another. Each keeps its conversation and native tool permissions; replies come back through AX.</p></article>
+    </div>
+  </section>
   <section class="section wrap docs-preview" aria-labelledby="docs-title">
     <div class="section-intro"><p class="eyebrow">03 / A little further in</p><h2 id="docs-title">Less guessing.<br>More building.</h2><p>From your first message to a new harness adapter, the docs explain how AX behaves and where its boundaries are.</p><a class="button secondary" href="/docs">Open the docs <span aria-hidden="true">↗</span></a></div>
     <div class="docs-links">
