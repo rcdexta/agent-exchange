@@ -18,7 +18,7 @@ You can also follow [AGENTS.md](AGENTS.md) yourself or browse the [documentation
 
 Install and sign in to your coding harnesses separately.
 
-AX 0.6.1 includes all five harnesses, the inbox, pane launching, and resource protection. The installer downloads the latest published release.
+AX 0.7.0 adds pending-message recovery, clearer delivery receipts, connection diagnostics, and Claude startup recovery. See the [release notes](claude.rc/release-notes.md), including the naming-option migration. The installer downloads the latest published release.
 
 ## Try it
 
