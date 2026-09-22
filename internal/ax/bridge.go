@@ -171,9 +171,17 @@ func (b *bridge) connectLoop() {
 			continue
 		}
 		b.mu.Lock()
+		// A hook may have recorded a conflict while messaging was disconnected.
+		if latest, err := loadSession(b.file); err == nil && latest.BindingError != "" {
+			b.session = latest
+			b.active = false
+		}
 		active := b.active
+		bindingError := b.session.BindingError
 		b.mu.Unlock()
-		if active {
+		if bindingError != "" {
+			e = c.call("ax.presence", object{"binding_error": bindingError, "state": "blocked"}, nil)
+		} else if active {
 			e = c.call("ax.ready", object{}, nil)
 		}
 		if e != nil {
@@ -241,7 +249,7 @@ func (b *bridge) bootstrap() {
 		return
 	}
 	s, e := loadSession(b.file)
-	if e != nil || !s.Started || !nativeID(s.Host, s.Native) {
+	if e != nil || s.BindingError != "" || !s.Started || !nativeID(s.Host, s.Native) {
 		b.mu.Unlock()
 		return
 	}
@@ -353,6 +361,11 @@ func (b *bridge) bind(ctx context.Context, c *client, meta json.RawMessage) erro
 }
 
 func (b *bridge) bindingLocked(meta json.RawMessage) (object, error) {
+	lock, err := lockSession(b.file)
+	if err != nil {
+		return nil, err
+	}
+	defer lock.Close()
 	// SessionStart can bind after MCP initialization. Always check the current
 	// binding before a tool call so another thread cannot overwrite it.
 	s, e := loadSession(b.file)
@@ -360,6 +373,9 @@ func (b *bridge) bindingLocked(meta json.RawMessage) (object, error) {
 		return nil, e
 	}
 	b.session = s
+	if s.BindingError != "" {
+		return nil, errors.New(s.BindingError)
+	}
 	if s.Host != "codex" {
 		if !s.Started || !nativeID(s.Host, s.Native) {
 			return nil, fmt.Errorf("%s session is still starting; retry shortly", s.Host)

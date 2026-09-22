@@ -41,6 +41,10 @@ type sendReceipt struct {
 func agentSnapshot(p *peer) Agent {
 	a := p.Agent
 	a.Online = p.conn != nil && time.Since(p.seen) <= 15*time.Second
+	if a.BindingError != "" {
+		a.State = "binding-conflict"
+		return a
+	}
 	lifecycled := p.State != "starting"
 	switch {
 	case !a.Online && !lifecycled:

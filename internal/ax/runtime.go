@@ -29,6 +29,7 @@ type Session struct {
 	NativeFile    string          `json:"native_session_file,omitempty"`
 	ClaudePending string          `json:"claude_pending_transcript,omitempty"`
 	Started       bool            `json:"started"`
+	BindingError  string          `json:"binding_error,omitempty"`
 	AllowBypass   bool            `json:"allow_bypass"`
 	CodexRemote   string          `json:"codex_remote,omitempty"`
 	AdapterSocket string          `json:"adapter_socket,omitempty"`
@@ -137,6 +138,25 @@ func lockFile(p string) (*os.File, error) {
 }
 func saveSession(p string, s Session) error {
 	return savePrivateJSON(p, s)
+}
+
+// Hooks and MCP metadata can both finish startup. Serialize their file updates
+// separately from the launcher's lifetime lock, with a bounded contention wait.
+func lockSession(path string) (*os.File, error) {
+	if path == "" {
+		return nil, errors.New("AX session file is missing")
+	}
+	deadline := time.Now().Add(time.Second)
+	for {
+		f, err := lockFile(path + ".state.lock")
+		if err == nil {
+			return f, nil
+		}
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("AX session state is busy or unavailable: %w", err)
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
 }
 func savePrivateJSON(p string, value any) error {
 	b, e := json.Marshal(value)

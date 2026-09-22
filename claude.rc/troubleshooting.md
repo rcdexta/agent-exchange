@@ -17,6 +17,26 @@ On Windows, AX and both harnesses must run in the same WSL 2 distribution. If th
 
 Claude and Codex become reachable after their native startup confirmation and MCP tool discovery, including resumed conversations. No model setup turn is needed. Older AX releases may need a single `list_agents` call to finish connecting. Do not leave the agent polling for another agent to join.
 
+## A resumed conversation has a binding conflict
+
+An AX name belongs to one saved conversation. If the native resume picker selects a different conversation, AX holds incoming mail and reports `binding-conflict`. The diagnostic includes the saved and selected conversation IDs and appears in `ax agents`, `ax doctor`, and AX tool errors. A late lifecycle hook cannot silently clear it.
+
+Exit the affected session normally. To return to its saved conversation, launch the same name without a resume argument:
+
+```sh
+ax claude -n api
+```
+
+To adopt the other conversation, use an unused AX name with the harness's native resume command:
+
+```sh
+ax claude -n api-resumed -r CONVERSATION_ID
+```
+
+Codex follows the same rule with `ax codex -n web-resumed resume CONVERSATION_ID`. AX rejects an unambiguous leading resume UUID that conflicts with a saved name before enrolling or starting the harness. Names and picker selections are checked when the harness confirms its selection.
+
+Saved mail stays with the original AX identity. AX does not delete a name, rebind it, or replay its mail into another conversation. Even a startup hook for a conversation whose transcript has not yet been created does not authorize rebinding; its conflict is reported so the user can choose the intended conversation explicitly.
+
 ## A message is queued
 
 Queued means the broker stored the message. It does not mean the recipient has read it or completed the task. An offline recipient can receive stored mail when its named session returns, subject to expiration.
