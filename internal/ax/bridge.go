@@ -232,9 +232,8 @@ func wakeText(host, id string) string {
 	return "AX peer message waiting. Call the MCP tool " + tool + " with message_id=" + id + ". " + delegation + " Use reply(message_id, text) if a response is needed; this also acknowledges receipt. Otherwise use ack_message(message_id)."
 }
 
-// Bootstrap through native ingress after tool discovery and SessionStart. Keeping
-// it out of argv preserves the host's positional prompts and resume grammar.
-// Peer mail remains gated on a real tool call, even if this setup wake is lost.
+// Native session confirmation and successful MCP tool discovery together prove
+// readiness. Activation must not depend on a resumed model repeating a setup turn.
 func (b *bridge) bootstrap() {
 	b.mu.Lock()
 	if b.active || b.bootstrapped || !b.toolsListed {
@@ -263,6 +262,9 @@ func (b *bridge) bootstrap() {
 			b.mu.Unlock()
 			return
 		}
+		if s.Host == "claude" || s.Host == "codex" {
+			return
+		}
 	}
 	if e = b.notify(s, setupText(s), object{"kind": "ax_setup"}); e != nil {
 		fmt.Fprintln(os.Stderr, "AX setup:", e)
@@ -275,8 +277,7 @@ func setupText(s Session) string {
 	return "You are AX agent " + s.Name + ". " + delegation + " Call the MCP tool " + tool + " once to connect messaging, then finish your turn. Use this MCP server's tools when asked to communicate with other agents. After sending, end your turn; AX wakes you for replies. Never poll or sleep waiting."
 }
 
-// A real tool call proves the host has finished loading this MCP server. A new
-// process must prove readiness again; a network reconnect preserves it.
+// A new MCP process must prove readiness again; a network reconnect preserves it.
 func (b *bridge) activate() error {
 	ctx, cancel := context.WithTimeout(b.ctx, 10*time.Second)
 	defer cancel()
@@ -436,7 +437,7 @@ func runBridge(ctx context.Context, dir, file string, in io.Reader, out io.Write
 			if s.Host == "claude" {
 				caps["experimental"] = object{"claude/channel": object{}}
 			}
-			if e = b.emit(packet{ID: p.ID, Result: raw(object{"protocolVersion": args.Version, "capabilities": caps, "serverInfo": object{"name": "ax", "version": Version}, "instructions": instructions})}); e != nil {
+			if e = b.emit(packet{ID: p.ID, Result: raw(object{"protocolVersion": args.Version, "capabilities": caps, "serverInfo": object{"name": "ax", "version": Version}, "instructions": "You are AX agent " + s.Name + ". " + instructions})}); e != nil {
 				return e
 			}
 		case "notifications/initialized":
