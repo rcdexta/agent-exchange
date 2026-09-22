@@ -9,9 +9,11 @@ ax doctor
 
 ## An agent is missing
 
-Confirm that the session was launched through AX with the name you expect. Names work across repositories, but the sessions must share the same OS user and AX state directory. `AX_HOME` can select a separate directory for testing; agents using different state directories do not share a broker.
+Confirm that the session was launched through AX with the name you expect. Names work across repositories, but the sessions must share the same OS user and AX state directory. `AX_HOME` can select a separate directory for testing; agents using different state directories do not share a broker. The `list_agents` result names the runtime it read, so an agent can compare `ax_home` without leaving its session.
 
 On Windows, AX and both harnesses must run in the same WSL 2 distribution. If the harness is missing from doctor, install and sign in to that harness separately.
+
+`ax agents` names the condition. `unstarted` means the session enrolled but its harness never reported it running; `inactive` means the harness is running but has not called an AX tool yet.
 
 If tools are connected but the agent has not appeared yet, ask it to call AX’s `list_agents` tool once. Do not leave it polling for another agent to join.
 

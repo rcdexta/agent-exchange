@@ -36,13 +36,21 @@ type sendReceipt struct {
 	TaskCompletion string `json:"task_completion"`
 }
 
+// Enroll resets State to "starting" and only ax.lifecycle advances it, so a peer
+// still holding that value has never reported itself alive.
 func agentSnapshot(p *peer) Agent {
 	a := p.Agent
 	a.Online = p.conn != nil && time.Since(p.seen) <= 15*time.Second
-	if !a.Online {
+	lifecycled := p.State != "starting"
+	switch {
+	case !a.Online && !lifecycled:
+		a.State = "unstarted"
+	case !a.Online:
 		a.State = "offline"
-	} else if !p.ready {
+	case !p.ready && !lifecycled:
 		a.State = "starting"
+	case !p.ready:
+		a.State = "inactive"
 	}
 	return a
 }
@@ -73,8 +81,12 @@ func queueReason(to, from *peer) string {
 	switch {
 	case to.Policy != "accept":
 		return "Recipient policy is " + to.Policy + "."
+	case snapshot.State == "unstarted":
+		return "Recipient enrolled but its session never started; mail remains queued."
 	case !snapshot.Online:
 		return "Recipient is offline; mail remains queued."
+	case snapshot.State == "inactive":
+		return "Recipient is running but has not activated AX messaging; mail remains queued until it calls an AX tool."
 	case snapshot.State == "starting" || to.Native == "":
 		return "Recipient is starting; messaging is not ready."
 	case snapshot.State == "blocked":

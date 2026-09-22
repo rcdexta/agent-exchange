@@ -637,7 +637,7 @@ func (b *broker) resolve(target string) (*peer, error) {
 		}
 	}
 	if len(matches) == 0 {
-		return nil, fmt.Errorf("agent %q not found on this machine; launch it with ax first", target)
+		return nil, fmt.Errorf("agent %q not found in this AX runtime; launch it with ax, or check whether it is running under a different AX_HOME", target)
 	}
 	if len(matches) != 1 {
 		return nil, errors.New("ambiguous agent name; list agents and use agent_id")
