@@ -531,11 +531,7 @@ Ask either agent to message another by name.
 				fmt.Println("No AX agents yet. Launch a named session with ax HARNESS --name NAME.")
 			}
 			for _, a := range agents {
-				state := a.State
-				if !a.Online {
-					state = "offline"
-				}
-				fmt.Printf("%-18s %-8s %-10s policy=%s\n", a.Name, a.Host, state, a.Policy)
+				fmt.Printf("%-18s %-8s %-10s policy=%s\n", a.Name, a.Host, a.State, a.Policy)
 			}
 			return nil
 		case "status":
