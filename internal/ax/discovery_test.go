@@ -3,7 +3,9 @@ package ax
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -100,4 +102,56 @@ func TestFourPeerDiscoveryAcrossHarnessesAndReconnects(t *testing.T) {
 		t.Fatalf("different AX homes leaked agents: %+v", view)
 	}
 	assertViews("")
+}
+
+func TestListAgentsNamesTheRuntimeItSearched(t *testing.T) {
+	dir := startTestServer(t)
+	admin, err := dial(socketPath(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.close()
+	s := Session{ID: randomID("agt_"), Secret: randomID("") + randomID(""), Name: "web", Host: "claude", Mesh: testMesh, Native: uuid(), Started: true}
+	if err := admin.call("ax.enroll", s, nil); err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(dir, "session.json")
+	if err := saveSession(file, s); err != nil {
+		t.Fatal(err)
+	}
+	var in, out bytes.Buffer
+	json.NewEncoder(&in).Encode(packet{JSONRPC: "2.0", ID: raw(1), Method: "tools/call", Params: raw(object{"name": "list_agents", "arguments": object{}})})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := Bridge(ctx, dir, file, &in, &out); err != nil {
+		t.Fatal(err)
+	}
+	var frame packet
+	var response struct {
+		IsError bool                    `json:"isError"`
+		Content []struct{ Text string } `json:"content"`
+	}
+	if err := json.NewDecoder(&out).Decode(&frame); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(frame.Result, &response); err != nil || response.IsError || len(response.Content) != 1 {
+		t.Fatalf("bad MCP response: %s %v", frame.Result, err)
+	}
+	var result struct {
+		Agents []Agent `json:"agents"`
+		Home   string  `json:"ax_home"`
+		Scope  string  `json:"scope"`
+	}
+	if err := json.Unmarshal([]byte(response.Content[0].Text), &result); err != nil {
+		t.Fatalf("list_agents result is not an object: %s", response.Content[0].Text)
+	}
+	if len(result.Agents) != 1 || result.Agents[0].Name != "web" {
+		t.Fatalf("agents missing from the result: %+v", result.Agents)
+	}
+	if result.Home != dir {
+		t.Fatalf("result named runtime %q, want %q", result.Home, dir)
+	}
+	if !strings.Contains(result.Scope, "AX_HOME") {
+		t.Fatalf("result does not explain runtime isolation: %q", result.Scope)
+	}
 }
