@@ -1,6 +1,7 @@
 package ax
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net"
@@ -9,9 +10,136 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
+
+func TestCodexNativeSelectionCarriesEffectivePermissions(t *testing.T) {
+	for _, method := range []string{"thread/start", "thread/resume", "thread/fork"} {
+		for _, policy := range []struct{ native, permission string }{{"readOnly", "read-only"}, {"workspaceWrite", "workspace-write"}, {"dangerFullAccess", "danger-full-access"}, {"futurePolicy", "unknown"}} {
+			o := codexSessionObserver{pending: map[string]bool{}}
+			native := uuid()
+			response := raw(object{"id": 1, "result": object{"thread": object{"id": native}, "sandbox": object{"type": policy.native}}})
+			if o.response(response) != nil {
+				t.Fatal("unsolicited response bound AX")
+			}
+			o.request(raw(object{"id": 1, "method": method}))
+			var hook struct{ Session, Permission string }
+			var event map[string]string
+			if err := json.Unmarshal(o.response(response), &event); err != nil {
+				t.Fatal(err)
+			}
+			hook.Session, hook.Permission = event["session_id"], event["permission_mode"]
+			if hook.Session != native || hook.Permission != policy.permission || event["hook_event_name"] != "SessionStart" {
+				t.Fatalf("%s: %+v", method, event)
+			}
+			if o.response(response) != nil {
+				t.Fatal("duplicate response rebound AX")
+			}
+		}
+	}
+	o := codexSessionObserver{pending: map[string]bool{}}
+	for i := 0; i < 100; i++ {
+		o.request(raw(object{"id": i, "method": "thread/resume"}))
+	}
+	if len(o.pending) != 16 {
+		t.Fatalf("unbounded pending selections: %d", len(o.pending))
+	}
+	if o.response(raw(object{"id": 0, "error": object{"code": -1, "message": "not found"}})) != nil {
+		t.Fatal("failed selection bound AX")
+	}
+	if o.response(raw(object{"id": 1, "method": "thread/started", "params": object{"thread": object{"id": uuid()}}})) != nil {
+		t.Fatal("notification bound AX")
+	}
+}
+
+func TestCodexNativeSelectionBindsBeforeFirstTurn(t *testing.T) {
+	dir := startTestServer(t)
+	file := filepath.Join(dir, "session.json")
+	s := Session{ID: randomID("agt_"), Secret: randomID("") + randomID(""), Name: "automatic", Host: "codex", Mesh: testMesh}
+	if err := saveSession(file, s); err != nil {
+		t.Fatal(err)
+	}
+	broker, err := dial(socketPath(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer broker.close()
+	if err = broker.call("ax.enroll", s, nil); err != nil {
+		t.Fatal(err)
+	}
+	native := uuid()
+	backendPath := filepath.Join(dir, "native.sock")
+	listener, err := net.Listen("unix", backendPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := raw(object{"id": 7, "method": "thread/resume", "params": object{"threadId": native, "sandbox": "workspace-write"}})
+	response := raw(object{"id": 7, "result": object{"thread": object{"id": native}, "sandbox": object{"type": "workspaceWrite"}, "unknownFutureField": true}})
+	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := (&websocket.Upgrader{}).Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		_, data, err := conn.ReadMessage()
+		if err != nil || !bytes.Equal(data, request) {
+			t.Errorf("native request changed: %s %v", data, err)
+			return
+		}
+		conn.WriteMessage(websocket.TextMessage, response)
+	})}
+	go server.Serve(listener)
+	defer server.Close()
+	errors := make(chan error, 1)
+	remote, cleanup, err := codexSessionSocket(context.Background(), dir, file, "unix://"+backendPath, false, errors)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	conn, err := dialCodex(context.Background(), remote)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	if err = conn.WriteMessage(websocket.TextMessage, request); err != nil {
+		t.Fatal(err)
+	}
+	_, got, err := conn.ReadMessage()
+	if err != nil || !bytes.Equal(got, response) {
+		t.Fatalf("native response changed: %s %v", got, err)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		var agents []Agent
+		if err = broker.call("ax.inspect", object{}, &agents); err != nil {
+			t.Fatal(err)
+		}
+		if len(agents) == 1 && agents[0].Native == native && agents[0].Permission == "workspace-write" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("startup was not bound: %+v", agents)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	saved, err := loadSession(file)
+	if err != nil || !saved.Started || saved.Native != native {
+		t.Fatalf("native selection not saved: %+v %v", saved, err)
+	}
+	other := uuid()
+	err = Hook(dir, file, bytes.NewReader(raw(object{"hook_event_name": "SessionStart", "session_id": other, "permission_mode": "read-only"})))
+	if err == nil {
+		t.Fatal("native selection replaced saved identity")
+	}
+	select {
+	case err = <-errors:
+		t.Fatal(err)
+	default:
+	}
+}
 
 func TestCodexBypassKeepsNativeArguments(t *testing.T) {
 	flag := "--dangerously-bypass-approvals-and-sandbox"
@@ -92,7 +220,7 @@ func TestCodexBypassSocketForwardsAndCloses(t *testing.T) {
 	})}
 	go server.Serve(listener)
 	defer server.Close()
-	remote, cleanup, err := codexBypassSocket(context.Background(), dir, "unix://"+path)
+	remote, cleanup, err := codexSessionSocket(context.Background(), dir, filepath.Join(dir, "unused.json"), "unix://"+path, true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

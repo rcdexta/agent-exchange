@@ -225,7 +225,7 @@ func launch(ctx context.Context, dir, host string, args []string, spawnToken str
 		}
 		config := []string{"mcp_servers.ax.command=" + strconv.Quote(exe), "mcp_servers.ax.args=[\"bridge\"]", "mcp_servers.ax.env.AX_HOME=" + strconv.Quote(dir), "mcp_servers.ax.env.AX_SESSION_FILE=" + strconv.Quote(path), "mcp_servers.ax.enabled=true"}
 		if !codexHelp(nativeArgs) {
-			remote, cleanup, err := startCodex(ctx, dir, path, nativeBin, append(codexConfigOverrides(nativeArgs), config...), startupErrors)
+			remote, cleanup, err := startCodex(ctx, dir, path, nativeBin, append(codexConfigOverrides(nativeArgs), config...))
 			if err != nil {
 				return err
 			}
@@ -234,13 +234,11 @@ func launch(ctx context.Context, dir, host string, args []string, spawnToken str
 			if err = saveSession(path, s); err != nil {
 				return err
 			}
-			if bypass {
-				remote, cleanup, err = codexBypassSocket(ctx, dir, remote)
-				if err != nil {
-					return err
-				}
-				defer cleanup()
+			remote, cleanup, err = codexSessionSocket(ctx, dir, path, remote, bypass, startupErrors)
+			if err != nil {
+				return err
 			}
+			defer cleanup()
 			argv = append(argv, "--remote", remote)
 		}
 		for _, v := range config {

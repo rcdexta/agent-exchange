@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -368,33 +369,60 @@ func TestLifecycleBindsExistingSession(t *testing.T) {
 	}
 }
 
-func TestBootstrapWaitsForDiscoveryAndSessionStart(t *testing.T) {
-	var out bytes.Buffer
-	dir := testDir(t)
-	file := filepath.Join(dir, "session.json")
-	s := Session{Host: "claude", Name: "api", Native: uuid()}
-	if err := saveSession(file, s); err != nil {
-		t.Fatal(err)
-	}
-	b := &bridge{session: s, file: file, out: &out, ctx: context.Background()}
-	b.bootstrap()
-	b.toolsListed = true
-	b.bootstrap()
-	if out.Len() != 0 {
-		t.Fatal("wake before native SessionStart")
-	}
-	s.Started = true
-	if err := saveSession(file, s); err != nil {
-		t.Fatal(err)
-	}
-	b.bootstrap()
-	if !strings.Contains(out.String(), "mcp__ax__list_agents") {
-		t.Fatal("missing scoped setup tool")
-	}
-	size := out.Len()
-	b.bootstrap()
-	if out.Len() != size {
-		t.Fatal("repeated setup wake")
+func TestResumedHostsReceiveWithoutModelToolCall(t *testing.T) {
+	for _, host := range []string{"claude", "codex"} {
+		for _, discoveryFirst := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/discoveryFirst=%v", host, discoveryFirst), func(t *testing.T) {
+				dir := startTestServer(t)
+				s := Session{ID: randomID("agt_"), Secret: randomID("") + randomID(""), Host: host, Name: "api", Native: uuid(), Mesh: testMesh}
+				file := filepath.Join(dir, "session.json")
+				if err := saveSession(file, s); err != nil {
+					t.Fatal(err)
+				}
+				c, err := dial(socketPath(dir))
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer c.close()
+				if err = c.call("ax.enroll", s, nil); err != nil {
+					t.Fatal(err)
+				}
+				if err = c.call("ax.connect", object{"version": "1", "agent_id": s.ID, "secret": s.Secret}, nil); err != nil {
+					t.Fatal(err)
+				}
+				sender := connectDiscoveryPeer(t, dir, Session{ID: randomID("agt_"), Secret: randomID("") + randomID(""), Host: "codex", Name: "web", Native: uuid(), Mesh: testMesh})
+				if err = sender.call("ax.send", object{"target": "api", "text": "queued before readiness", "client_message_id": randomID("key_")}, nil); err != nil {
+					t.Fatal(err)
+				}
+				var out bytes.Buffer
+				b := &bridge{session: s, file: file, dir: dir, c: c, ctx: context.Background(), out: &out, toolsListed: discoveryFirst}
+				b.bootstrap()
+				if b.active {
+					t.Fatal("activated before SessionStart")
+				}
+				if err = Hook(dir, file, bytes.NewReader(raw(object{"session_id": s.Native, "hook_event_name": "SessionStart", "permission_mode": "workspace-write"}))); err != nil {
+					t.Fatal(err)
+				}
+				b.bootstrap()
+				if !discoveryFirst && b.active {
+					t.Fatal("activated before MCP discovery")
+				}
+				b.toolsListed = true
+				b.bootstrap()
+				b.bootstrap()
+				if !b.active || out.Len() != 0 {
+					t.Fatalf("active=%v artificial model wake=%q", b.active, out.String())
+				}
+				select {
+				case message := <-c.offers:
+					if message.Text != "queued before readiness" {
+						t.Fatalf("wrong message: %+v", message)
+					}
+				case <-time.After(3 * time.Second):
+					t.Fatal("queued peer message still waiting for a model tool call")
+				}
+			})
+		}
 	}
 }
 

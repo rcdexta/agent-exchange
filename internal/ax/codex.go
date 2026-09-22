@@ -1,7 +1,6 @@
 package ax
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -19,7 +18,7 @@ import (
 
 // Codex defers SessionStart hooks until a user turn. Run its native backend on a
 // private socket so its ordinary TUI can select a thread before AX wakes it.
-func startCodex(ctx context.Context, dir, file, bin string, config []string, startupErrors chan<- error) (string, func(), error) {
+func startCodex(ctx context.Context, dir, file, bin string, config []string) (string, func(), error) {
 	ctx, cancel := context.WithCancel(ctx)
 	socket := filepath.Join(dir, randomID("codex_")+".sock")
 	log, err := openDiagnosticLog(dir, "codex.log")
@@ -75,14 +74,7 @@ func startCodex(ctx context.Context, dir, file, bin string, config []string, sta
 		cleanup()
 		return "", nil, err
 	}
-	stop := cleanup
-	cleanup = func() { cancel(); conn.Close(); stop() }
-	go func() {
-		defer conn.Close()
-		if err := bindCodex(ctx, conn, dir, file); err != nil && ctx.Err() == nil {
-			startupErrors <- fmt.Errorf("Codex connection: %w", err)
-		}
-	}()
+	conn.Close()
 	return "unix://" + socket, cleanup, nil
 }
 
@@ -134,44 +126,6 @@ func codexCall(conn *websocket.Conn, id int, method string, params, result any) 
 		}
 		return json.Unmarshal(reply.Result, result)
 	}
-}
-
-func bindCodex(ctx context.Context, conn *websocket.Conn, dir, file string) error {
-	for id := 2; ctx.Err() == nil; id += 2 {
-		var loaded struct {
-			Data []string `json:"data"`
-		}
-		if err := codexCall(conn, id, "thread/loaded/list", object{}, &loaded); err != nil {
-			return err
-		}
-		// This backend belongs only to this launcher. Filter subagents if the user
-		// supplied an initial prompt that started one before we observed the root.
-		for _, native := range loaded.Data {
-			var info struct {
-				Thread struct {
-					ID     string          `json:"id"`
-					Source json.RawMessage `json:"source"`
-				} `json:"thread"`
-			}
-			if err := codexCall(conn, id+1, "thread/read", object{"threadId": native, "includeTurns": false}, &info); err != nil {
-				return err
-			}
-			var source string
-			if json.Unmarshal(info.Thread.Source, &source) != nil {
-				continue
-			}
-			if !validNative(info.Thread.ID) || info.Thread.ID != native {
-				return errors.New("invalid Codex thread identity")
-			}
-			return Hook(dir, file, bytes.NewReader(raw(object{"session_id": native, "hook_event_name": "SessionStart"})))
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(100 * time.Millisecond):
-		}
-	}
-	return ctx.Err()
 }
 
 // Remote TUIs send model/sandbox choices in thread RPCs, but server configuration

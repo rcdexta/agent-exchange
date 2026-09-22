@@ -30,8 +30,8 @@ type harnessAdapter struct {
 }
 
 var harnesses = map[string]harnessAdapter{
-	"claude":   {toolPrefix: "mcp__ax__", nativeID: validNative, nameFlag: "--name"},
-	"codex":    {toolPrefix: "ax.", nativeID: validNative},
+	"claude":   {toolPrefix: "mcp__ax__", nativeID: validNative, nameFlag: "--name", readyOnDiscovery: true},
+	"codex":    {toolPrefix: "ax.", nativeID: validNative, readyOnDiscovery: true},
 	"grok":     {toolPrefix: "ax__", nativeID: validNative, readyOnDiscovery: true},
 	"opencode": {toolPrefix: "ax_", nativeID: regexp.MustCompile(`^ses_[a-zA-Z0-9]+$`).MatchString, readyOnDiscovery: true},
 	"pi":       {toolPrefix: "ax_", nativeID: validNative, nativeLaunch: true},
