@@ -12,7 +12,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -113,7 +112,6 @@ func doctorBroker(ctx context.Context, dir string, out io.Writer) {
 		return
 	}
 	fmt.Fprintf(out, "Broker: reachable, %d registered agents\n", len(agents))
-	sort.Slice(agents, func(i, j int) bool { return agents[i].Name < agents[j].Name })
 	for _, a := range agents {
 		fmt.Fprintf(out, "  name=%q harness=%q online=%t state=%q agent=%q\n", a.Name, a.Host, a.Online, a.State, a.ID)
 	}
