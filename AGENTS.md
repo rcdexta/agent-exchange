@@ -15,7 +15,7 @@ AX uses prebuilt binaries. Go, Make, Node, a C compiler, a GitHub account, and G
 Run as the current user:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/summationai/agent-exchange/main/install.sh | sh
+curl -fsSL https://useax.dev/install.sh | sh
 ```
 
 The installer selects the latest release for the OS and CPU, verifies its SHA-256 checksum and version, and atomically installs `ax` into `$HOME/.local/bin`. Failed downloads and checksum checks preserve the previous binary. If necessary, the installer adds that directory to the user's shell configuration.
@@ -70,7 +70,7 @@ In AX 0.7.0, replace the old `-name` option in saved commands with `-n`, for exa
 Download the installer first to inspect it or select a release:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/summationai/agent-exchange/main/install.sh -o install-ax.sh
+curl -fsSL https://useax.dev/install.sh -o install-ax.sh
 AX_VERSION=v0.7.0 sh install-ax.sh
 ```
 
