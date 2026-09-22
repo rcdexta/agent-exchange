@@ -27,6 +27,7 @@ type Session struct {
 	Workspace     string          `json:"workspace"`
 	Native        string          `json:"native_session_id"`
 	NativeFile    string          `json:"native_session_file,omitempty"`
+	ClaudePending string          `json:"claude_pending_transcript,omitempty"`
 	Started       bool            `json:"started"`
 	AllowBypass   bool            `json:"allow_bypass"`
 	CodexRemote   string          `json:"codex_remote,omitempty"`

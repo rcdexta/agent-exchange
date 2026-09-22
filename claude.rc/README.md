@@ -26,6 +26,15 @@ ax pi --name worker -r
 
 Launching the same AX name with no native arguments resumes its saved conversation. Supplying native arguments leaves selection to the native harness. AX rejects a different conversation under an already bound name. Close the old terminal before adopting its conversation through AX.
 
+**Unreleased startup recovery:** Claude can run its startup hook before saving a conversation. If that new session
+exits before its transcript is created, AX remembers the pending startup and uses
+the same conversation ID on the next launch. Once the transcript exists, AX uses
+normal resume. AX checks only the path supplied by Claude's hook, never transcript
+contents. Existing files, deleted saved conversations, and names saved by older AX
+versions retain normal resume behavior. If Claude still reports a missing
+conversation, capture `ax doctor` from the affected terminal and report the launch
+command; preserve the AX session file and native conversation data.
+
 Models, native prompts, and native options are forwarded. AX adds configuration to the launched process and does not rewrite global harness configuration or conversation transcripts. A native option being forwarded does not imply every native mode supports messaging.
 
 ## Launch a peer in another pane
