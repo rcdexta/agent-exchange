@@ -102,7 +102,11 @@ em { font-family: Georgia, "Times New Roman", serif; font-weight: 400; }
 .codex-header { padding: 3px 9px; border: 1px solid #737478; border-radius: 4px; }
 .codex-header strong { display: block; color: #e3e3e5; }
 .claude-header { display: flex; align-items: center; gap: 11px; }
-.claude-header .claude-pixel { color: #d48e71; font: 11px/1.1 var(--terminal-font); white-space: pre; }
+.claude-mascot { flex: 0 0 55px; width: 55px; height: 40px; color: #d77757; overflow: visible; animation: clawd-bob 6s step-end infinite paused; }
+.clawd-eyes { fill: #252629; transform-box: fill-box; transform-origin: center; animation: clawd-blink 6s step-end infinite paused; }
+.exchange[data-playing] .claude-mascot, .exchange[data-playing] .clawd-eyes { animation-play-state: running; }
+@keyframes clawd-bob { 0%, 85%, 100% { transform: translateY(0); } 75%, 80% { transform: translateY(-2px); } }
+@keyframes clawd-blink { 0%, 44%, 100% { transform: scaleY(1); } 40% { transform: scaleY(.15); } }
 .claude-header strong { display: block; color: #dbd3ca; }
 .terminal-user { color: #eeeeef; }
 .terminal-tool { color: #d0d0d2; }
