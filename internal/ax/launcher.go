@@ -154,6 +154,9 @@ func launch(ctx context.Context, dir, host string, args []string, spawnToken str
 	if s.Host != host {
 		return fmt.Errorf("name %q belongs to %s; choose another name", name, s.Host)
 	}
+	if native := explicitResumeID(host, nativeArgs); s.Native != "" && native != "" && s.Native != native {
+		return bindingConflict(s, native)
+	}
 	if s.SpawnToken != "" && s.SpawnToken != spawnToken {
 		return fmt.Errorf("agent %q is reserved for a pane launch; inspect ax spawn-status %s", name, name)
 	}
@@ -164,6 +167,7 @@ func launch(ctx context.Context, dir, host string, args []string, spawnToken str
 	s.Terminal = detectTerminal()
 	s.Workspace, s.Mesh = cwd, mesh
 	s.Started = false // This launch must receive its own native SessionStart.
+	s.BindingError = ""
 	if s.ClaudePending != "" && !missingClaudeTranscript(s.ClaudePending) {
 		s.ClaudePending = ""
 	}
@@ -334,10 +338,6 @@ func missingClaudeTranscript(path string) bool {
 }
 
 func Hook(dir, file string, in io.Reader) error {
-	s, e := loadSession(file)
-	if e != nil {
-		return e
-	}
 	var input struct {
 		Session    string `json:"session_id"`
 		Event      string `json:"hook_event_name"`
@@ -347,11 +347,23 @@ func Hook(dir, file string, in io.Reader) error {
 		Source     string `json:"source"`
 		Transcript string `json:"transcript_path"`
 	}
-	if e = json.NewDecoder(io.LimitReader(in, maxFrame)).Decode(&input); e != nil {
-		return e
+	if err := json.NewDecoder(io.LimitReader(in, maxFrame)).Decode(&input); err != nil {
+		return err
 	}
 	if !validNative(input.Session) {
 		return errors.New("invalid native session ID in lifecycle hook")
+	}
+	lock, e := lockSession(file)
+	if e != nil {
+		return e
+	}
+	defer lock.Close()
+	s, e := loadSession(file)
+	if e != nil {
+		return e
+	}
+	if s.BindingError != "" {
+		return errors.New(s.BindingError)
 	}
 	if s.Native == "" && input.Event == "SessionStart" {
 		s.Native = input.Session
@@ -361,7 +373,19 @@ func Hook(dir, file string, in io.Reader) error {
 	}
 	if input.Session != s.Native {
 		if input.Event == "SessionStart" {
-			return fmt.Errorf("AX name %q belongs to conversation %s, but %s opened %s. Run ax %s --name %s to resume the saved conversation, or choose a new AX name for this one", s.Name, s.Native, s.Host, input.Session, s.Host, s.Name)
+			conflict := bindingConflict(s, input.Session)
+			s.Started, s.BindingError = false, conflict.Error()
+			if e = saveSession(file, s); e != nil {
+				return e
+			}
+			lock.Close()
+			// Tell an already-connected broker to hold mail. The file remains the
+			// durable error source even if the broker is temporarily unavailable.
+			if c, err := dial(socketPath(dir)); err == nil {
+				defer c.close()
+				_ = c.call("ax.lifecycle", object{"agent_id": s.ID, "secret": s.Secret, "native_session_id": s.Native, "state": "blocked", "binding_error": s.BindingError}, nil)
+			}
+			return conflict
 		}
 		return nil
 	}
@@ -380,6 +404,7 @@ func Hook(dir, file string, in io.Reader) error {
 			return e
 		}
 	}
+	lock.Close()
 	state := "busy"
 	switch input.Event {
 	case "SessionStart", "Stop":
@@ -396,6 +421,33 @@ func Hook(dir, file string, in io.Reader) error {
 	}
 	defer c.close()
 	return c.call("ax.lifecycle", object{"agent_id": s.ID, "secret": s.Secret, "native_session_id": input.Session, "permission_mode": input.Permission, "state": state}, nil)
+}
+
+func bindingConflict(s Session, actual string) error {
+	return fmt.Errorf("AX name %q belongs to conversation %s, but %s selected %s. Exit this session, then run ax %s -n %s to resume the saved conversation, or relaunch this conversation with an unused AX name. Saved mail stays with the original name", s.Name, s.Native, s.Host, actual, s.Host, s.Name)
+}
+
+// Only preflight an unambiguous leading resume argument. Native pickers, names,
+// and other argument arrangements are checked by their SessionStart hook.
+func explicitResumeID(host string, args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+	value := ""
+	if host == "claude" {
+		if len(args) > 1 && (args[0] == "-r" || args[0] == "--resume") {
+			value = args[1]
+		}
+		if strings.HasPrefix(args[0], "--resume=") {
+			value = strings.TrimPrefix(args[0], "--resume=")
+		}
+	} else if host == "codex" && len(args) > 1 && args[0] == "resume" {
+		value = args[1]
+	}
+	if validNative(value) {
+		return value
+	}
+	return ""
 }
 func Main(args []string) error {
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" {
@@ -530,6 +582,9 @@ Ask either agent to message another by name.
 			}
 			for _, a := range agents {
 				fmt.Printf("%-18s %-8s %-10s policy=%s\n", a.Name, a.Host, a.State, a.Policy)
+				if a.BindingError != "" {
+					fmt.Println("  " + a.BindingError)
+				}
 			}
 			return nil
 		case "status":

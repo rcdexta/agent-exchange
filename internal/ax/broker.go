@@ -27,16 +27,17 @@ var validName = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]{0,47}$`)
 var validID = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,80}$`)
 
 type Agent struct {
-	ID          string `json:"agent_id"`
-	Name        string `json:"name"`
-	Host        string `json:"host"`
-	Mesh        string `json:"mesh"`
-	Native      string `json:"native_session_id,omitempty"`
-	Permission  string `json:"permission_mode"`
-	State       string `json:"state"`
-	Policy      string `json:"policy"`
-	Online      bool   `json:"online"`
-	AllowBypass bool   `json:"allow_bypass"`
+	ID           string `json:"agent_id"`
+	Name         string `json:"name"`
+	Host         string `json:"host"`
+	Mesh         string `json:"mesh"`
+	Native       string `json:"native_session_id,omitempty"`
+	Permission   string `json:"permission_mode"`
+	State        string `json:"state"`
+	Policy       string `json:"policy"`
+	Online       bool   `json:"online"`
+	AllowBypass  bool   `json:"allow_bypass"`
+	BindingError string `json:"binding_error,omitempty"`
 }
 type Message struct {
 	ID        string       `json:"message_id"`
@@ -376,6 +377,7 @@ func (b *broker) request(c *serverConn, method string, params json.RawMessage) (
 				return nil, errors.New("invalid session credential")
 			}
 			p.State = "starting"
+			p.BindingError = ""
 			p.Permission = "unknown"
 			p.AllowBypass = s.AllowBypass
 			p.Mesh = s.Mesh
@@ -453,10 +455,16 @@ func (b *broker) request(c *serverConn, method string, params json.RawMessage) (
 		if a.Native != p.Native {
 			return nil, errors.New("hook belongs to another session")
 		}
+		if a.BindingError != "" {
+			if len(a.BindingError) > 1024 {
+				return nil, errors.New("binding error is too long")
+			}
+			p.BindingError, p.State = a.BindingError, "blocked"
+		}
 		if a.Permission != "" {
 			p.Permission = a.Permission
 		}
-		if a.State == "ready" || a.State == "busy" || a.State == "blocked" {
+		if p.BindingError == "" && (a.State == "ready" || a.State == "busy" || a.State == "blocked") {
 			p.State = a.State
 		}
 		if p.Agent == before {
@@ -526,12 +534,25 @@ func (b *broker) request(c *serverConn, method string, params json.RawMessage) (
 		}
 		return object{"ok": true}, nil
 	case "ax.ready":
+		if p.BindingError != "" {
+			return nil, errors.New(p.BindingError)
+		}
 		p.ready = true
 		return object{"ok": true}, nil
 	case "ax.heartbeat":
 		p.seen = time.Now()
 		return object{"ok": true}, nil
 	case "ax.presence":
+		if a.BindingError != "" {
+			if len(a.BindingError) > 1024 {
+				return nil, errors.New("binding error is too long")
+			}
+			p.BindingError, p.State = a.BindingError, "blocked"
+			return p.Agent, b.save(p)
+		}
+		if p.BindingError != "" {
+			return nil, errors.New(p.BindingError)
+		}
 		if a.Native != "" {
 			if !nativeID(p.Host, a.Native) {
 				return nil, errors.New("invalid native session ID")

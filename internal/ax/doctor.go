@@ -74,6 +74,9 @@ func doctor(ctx context.Context, dir string, out io.Writer) {
 			fmt.Fprintln(out, "Current AX session: unavailable; session file could not be read safely")
 		} else {
 			fmt.Fprintf(out, "Current AX session: name=%q harness=%q agent=%q native=%q workspace=%q\n", s.Name, s.Host, s.ID, s.Native, s.Workspace)
+			if s.BindingError != "" {
+				fmt.Fprintln(out, "Current AX session: "+s.BindingError)
+			}
 		}
 	}
 	for _, host := range []string{"claude", "codex", "grok", "opencode", "pi"} {
@@ -114,6 +117,9 @@ func doctorBroker(ctx context.Context, dir string, out io.Writer) {
 	fmt.Fprintf(out, "Broker: reachable, %d registered agents\n", len(agents))
 	for _, a := range agents {
 		fmt.Fprintf(out, "  name=%q harness=%q online=%t state=%q agent=%q\n", a.Name, a.Host, a.Online, a.State, a.ID)
+		if a.BindingError != "" {
+			fmt.Fprintln(out, "  "+a.BindingError)
+		}
 	}
 }
 
