@@ -1,14 +1,17 @@
 name: Website checks
 on:
   push:
-    paths: ['site/**', 'claude.rc/**', 'AGENTS.md', '.github/workflows/site.yml']
+    branches: [main]
   pull_request:
-    paths: ['site/**', 'claude.rc/**', 'AGENTS.md', '.github/workflows/site.yml']
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   site:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: site
