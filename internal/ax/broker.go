@@ -375,6 +375,7 @@ func (b *broker) request(c *serverConn, method string, params json.RawMessage) (
 			p.State = "starting"
 			p.Permission = "unknown"
 			p.AllowBypass = s.AllowBypass
+			p.Mesh = s.Mesh
 			if e := b.save(p); e != nil {
 				return nil, e
 			}

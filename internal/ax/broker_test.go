@@ -463,3 +463,23 @@ func TestResumeWaitsForHostTools(t *testing.T) {
 		t.Fatal("queued mail missing after readiness")
 	}
 }
+
+func TestEnrollRefreshesMeshAfterMove(t *testing.T) {
+	b, dir := localBroker(t)
+	s, _, _ := endpoint(t, b, "rover", testMesh)
+	moved := s
+	moved.Mesh = "aaaaaaaaaaaaaaaaaaaaaaaa"
+	request(t, b, &serverConn{}, "ax.enroll", moved)
+	if got := b.peers[s.ID].Mesh; got != moved.Mesh {
+		t.Fatalf("broker kept the mesh of the previous workspace: %q", got)
+	}
+	b.db.Close()
+	reopened, err := openBroker(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.db.Close()
+	if got := reopened.peers[s.ID].Mesh; got != moved.Mesh {
+		t.Fatalf("refreshed mesh did not persist: %q", got)
+	}
+}

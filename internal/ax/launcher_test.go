@@ -469,3 +469,35 @@ func TestHostKeepsNativeExitStatus(t *testing.T) {
 		t.Fatalf("native exit status changed: %v", err)
 	}
 }
+
+func TestMeshFollowsWorkspaceAcrossRelaunch(t *testing.T) {
+	dir, bin := startTestServer(t), testDir(t)
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if err := os.WriteFile(filepath.Join(bin, "claude"), []byte("#!/bin/sh\nexit 0\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	path, err := namedSessionPath(filepath.Join(dir, "sessions"), "rover")
+	if err != nil {
+		t.Fatal(err)
+	}
+	launchFrom := func(cwd string) Session {
+		t.Helper()
+		t.Chdir(cwd)
+		if err := Launch(context.Background(), dir, "claude", []string{"--name", "rover"}); err != nil {
+			t.Fatal(err)
+		}
+		s, err := loadSession(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	first := launchFrom(testDir(t))
+	second := launchFrom(testDir(t))
+	if first.Workspace == second.Workspace {
+		t.Fatal("test did not actually move the session")
+	}
+	if second.Mesh == first.Mesh {
+		t.Fatalf("mesh stayed on the previous workspace: %q", second.Mesh)
+	}
+}
