@@ -164,6 +164,9 @@ func launch(ctx context.Context, dir, host string, args []string, spawnToken str
 	s.Terminal = detectTerminal()
 	s.Workspace = cwd
 	s.Started = false // This launch must receive its own native SessionStart.
+	if s.ClaudePending != "" && !missingClaudeTranscript(s.ClaudePending) {
+		s.ClaudePending = ""
+	}
 	s.AllowBypass = bypass || os.Getenv("AX_ALLOW_BYPASS") == "1"
 	if e = saveSession(path, s); e != nil {
 		return e
@@ -207,6 +210,12 @@ func launch(ctx context.Context, dir, host string, args []string, spawnToken str
 		argv = []string{"--mcp-config", string(raw(config)), "--settings", string(raw(settings)), "--dangerously-load-development-channels", "server:ax", "--allowedTools", strings.Join(allowed, ","), "--append-system-prompt", instructions}
 		if len(nativeArgs) == 0 && s.Native != "" {
 			nativeArgs = []string{"--resume", s.Native}
+			if s.ClaudePending != "" {
+				// SessionStart can run before Claude creates a transcript. Reuse
+				// that exact UUID only while its recorded path is still absent.
+				nativeArgs[0] = "--session-id"
+				fmt.Fprintln(os.Stderr, "Claude has not saved this conversation yet; continuing with the same session ID.")
+			}
 		}
 		fmt.Fprintf(os.Stderr, "Agent Exchange · %s\nConfirm Claude's local development Channel prompt when it appears.\n", name)
 	} else if host == "codex" {
@@ -315,6 +324,17 @@ func runHost(cmd *exec.Cmd, startupErrors <-chan error) error {
 		}
 	}
 }
+
+// Check only native-provided path metadata, never transcript contents. Existing
+// files (even empty ones), unknown legacy state, and stat errors require resume.
+func missingClaudeTranscript(path string) bool {
+	if !filepath.IsAbs(path) {
+		return false
+	}
+	_, err := os.Lstat(path)
+	return os.IsNotExist(err)
+}
+
 func Hook(dir, file string, in io.Reader) error {
 	s, e := loadSession(file)
 	if e != nil {
@@ -326,6 +346,8 @@ func Hook(dir, file string, in io.Reader) error {
 		Permission string `json:"permission_mode"`
 		Tool       string `json:"tool_name"`
 		File       string `json:"session_file"`
+		Source     string `json:"source"`
+		Transcript string `json:"transcript_path"`
 	}
 	if e = json.NewDecoder(io.LimitReader(in, maxFrame)).Decode(&input); e != nil {
 		return e
@@ -335,6 +357,9 @@ func Hook(dir, file string, in io.Reader) error {
 	}
 	if s.Native == "" && input.Event == "SessionStart" {
 		s.Native = input.Session
+		if s.Host == "claude" && input.Source == "startup" && missingClaudeTranscript(input.Transcript) {
+			s.ClaudePending = input.Transcript
+		}
 	}
 	if input.Session != s.Native {
 		if input.Event == "SessionStart" {
@@ -342,11 +367,17 @@ func Hook(dir, file string, in io.Reader) error {
 		}
 		return nil
 	}
+	persisted := s.ClaudePending != "" && !missingClaudeTranscript(s.ClaudePending)
+	if persisted {
+		s.ClaudePending = ""
+	}
 	if input.Event == "SessionStart" {
 		if s.Host == "pi" && input.File != "" && filepath.IsAbs(input.File) {
 			s.NativeFile = input.File
 		}
 		s.Started = true
+	}
+	if input.Event == "SessionStart" || persisted {
 		if e = saveSession(file, s); e != nil {
 			return e
 		}

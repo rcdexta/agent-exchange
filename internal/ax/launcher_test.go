@@ -223,6 +223,116 @@ func TestFreshClaudeNameResumesOnlyAfterNativeBinding(t *testing.T) {
 	}
 }
 
+func TestClaudeUnwrittenConversationKeepsIdentity(t *testing.T) {
+	for _, observeHook := range []bool{false, true} {
+		t.Run(map[bool]string{false: "persisted-before-relaunch", true: "persisted-before-stop"}[observeHook], func(t *testing.T) {
+			dir, bin := startTestServer(t), testDir(t)
+			t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+			out := filepath.Join(bin, "args")
+			if err := os.WriteFile(filepath.Join(bin, "claude"), []byte("#!/bin/sh\nprintf '%s\\0' \"$@\" > "+shellQuote(out)+"\n"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			launch := func(extra ...string) []string {
+				t.Helper()
+				if err := Launch(context.Background(), dir, "claude", append([]string{"--name", "fresh"}, extra...)); err != nil {
+					t.Fatal(err)
+				}
+				data, err := os.ReadFile(out)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return strings.Split(strings.TrimSuffix(string(data), "\x00"), "\x00")
+			}
+			launch()
+			file := filepath.Join(dir, "sessions", "fresh.json")
+			original, err := loadSession(file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			native, transcript := uuid(), filepath.Join(bin, "conversation.jsonl")
+			hook := object{"session_id": native, "hook_event_name": "SessionStart", "source": "startup", "transcript_path": transcript}
+			if err := Hook(dir, file, bytes.NewReader(raw(hook))); err != nil {
+				t.Fatal(err)
+			}
+			for i := 0; i < 2; i++ {
+				args := launch()
+				if args[0] != "--session-id" || args[1] != native || slices.Contains(args, "--resume") {
+					t.Fatalf("unwritten conversation was resumed or replaced: %q", args)
+				}
+				saved, err := loadSession(file)
+				if err != nil || saved.ID != original.ID || saved.Secret != original.Secret || saved.Native != native {
+					t.Fatal("relaunch changed the AX identity or conversation binding")
+				}
+			}
+			args := launch("--resume", native)
+			if args[0] != "--resume" || args[1] != native || slices.Contains(args, "--session-id") {
+				t.Fatalf("explicit native selection changed: %q", args)
+			}
+			// Even an empty or metadata-only file belongs to Claude, not AX.
+			if err := os.WriteFile(transcript, nil, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if observeHook {
+				hook["hook_event_name"] = "Stop"
+				if err := Hook(dir, file, bytes.NewReader(raw(hook))); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				args = launch()
+				if args[0] != "--resume" || args[1] != native {
+					t.Fatalf("existing transcript was not resumed: %q", args)
+				}
+			}
+			saved, err := loadSession(file)
+			if err != nil || saved.ClaudePending != "" {
+				t.Fatal("persisted conversation retained its pending marker")
+			}
+			if err := os.Remove(transcript); err != nil {
+				t.Fatal(err)
+			}
+			args = launch()
+			if args[0] != "--resume" || args[1] != native {
+				t.Fatalf("deleted conversation was silently recreated: %q", args)
+			}
+		})
+	}
+}
+
+func TestClaudePendingRequiresKnownNewMissingTranscript(t *testing.T) {
+	dir := startTestServer(t)
+	for _, tc := range []struct{ name, source, transcript string }{
+		{"legacy", "", filepath.Join(dir, "missing.jsonl")},
+		{"resume", "resume", filepath.Join(dir, "missing.jsonl")},
+		{"no-path", "startup", ""},
+		{"relative-path", "startup", "relative.jsonl"},
+		{"existing-path", "startup", dir},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := Session{ID: randomID("agt_"), Secret: randomID(""), Name: tc.name, Host: "claude", Mesh: testMesh}
+			file := filepath.Join(dir, tc.name+".json")
+			if err := saveSession(file, s); err != nil {
+				t.Fatal(err)
+			}
+			c, err := dial(socketPath(dir))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer c.close()
+			if err := c.call("ax.enroll", s, nil); err != nil {
+				t.Fatal(err)
+			}
+			hook := object{"session_id": uuid(), "hook_event_name": "SessionStart", "source": tc.source, "transcript_path": tc.transcript}
+			if err := Hook(dir, file, bytes.NewReader(raw(hook))); err != nil {
+				t.Fatal(err)
+			}
+			saved, err := loadSession(file)
+			if err != nil || saved.ClaudePending != "" {
+				t.Fatal("unknown or existing conversation marked as unwritten")
+			}
+		})
+	}
+}
+
 func TestLifecycleBindsExistingSession(t *testing.T) {
 	dir := startTestServer(t)
 	for _, host := range []string{"claude", "codex", "pi"} {
