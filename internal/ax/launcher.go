@@ -394,7 +394,7 @@ Ask either agent to message another by name.
   ax status MESSAGE_ID          Inspect delivery receipts
   ax resolve MESSAGE_ID abandon Release a stuck message without redelivery
   ax policy NAME hold           Pause incoming mail (accept/hold/refuse)
-  ax doctor                     Check installed harnesses
+  ax doctor                     Diagnose harnesses, Channels, and local discovery
   ax version                    Show the AX version`)
 		return nil
 	}
@@ -477,21 +477,8 @@ Ask either agent to message another by name.
 		}
 		return Inbox(ctx, dir, target, os.Stdin, os.Stdout)
 	case "doctor":
-		fmt.Println(resourceStatus(dir))
-		for _, host := range []string{"claude", "codex", "grok", "opencode", "pi"} {
-			cmd := exec.Command(host, "--version")
-			b, e := cmd.Output()
-			if e != nil {
-				fmt.Printf("%s: unavailable\n", host)
-			} else {
-				fmt.Printf("%s: %s", host, b)
-			}
-		}
-		fmt.Println("Claude: interactive development Channel opt-in required at launch.\nDiscovery: named agents connect across repositories on this machine.\nDelivery: queued and acknowledged are reported separately.")
-		if resourcePause(dir, time.Now()) != nil {
-			return nil
-		}
-		return ensureBroker(dir)
+		doctor(ctx, dir, os.Stdout)
+		return nil
 	case "agents", "status", "policy", "resolve":
 		if e = ensureBroker(dir); e != nil {
 			return e
