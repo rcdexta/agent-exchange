@@ -48,13 +48,18 @@ md.renderer.rules.table_close = () => '</table></div>\n';
 
 await rm(output, { recursive: true, force: true });
 await mkdir(new URL('docs/', output), { recursive: true });
+await mkdir(new URL('fonts/', output));
+for (const file of ['JetBrainsMono-Regular.woff2', 'JetBrainsMono-Bold.woff2', 'OFL.txt']) {
+  await copyFile(new URL('fonts/' + file, import.meta.url), new URL('fonts/' + file, output));
+}
 await copyFile(new URL('AGENTS.md', root), new URL('agents.md', output));
 await copyFile(new URL('install.sh', root), new URL('install.sh', output));
 for (const file of ['_headers', '_redirects', 'style.css', 'site.js', 'favicon.svg']) {
   await copyFile(new URL(file, import.meta.url), new URL(file, output));
 }
 const landing = await readFile(new URL('index.html', import.meta.url), 'utf8');
-await writeFile(new URL('index.html', output), landing.replace('{{HEADER}}', header).replace('{{FOOTER}}', footer));
+const installGuide = await readFile(new URL('AGENTS.md', root), 'utf8');
+await writeFile(new URL('index.html', output), landing.replace('{{HEADER}}', header).replace('{{FOOTER}}', footer).replace('{{AGENTS_MD}}', () => escape(installGuide)));
 
 for (const page of pages) {
   const env = { source: page.source };

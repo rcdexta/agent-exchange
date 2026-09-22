@@ -12,18 +12,29 @@ class Page(HTMLParser):
     def __init__(self, text):
         super().__init__()
         self.ids, self.links, self.h1 = [], [], 0
+        self.guide, self.in_guide = '', False
         self.feed(text)
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
         if 'id' in attrs:
             self.ids.append(attrs['id'])
+        if tag == 'textarea' and attrs.get('id') == 'agent-install-guide':
+            self.in_guide = True
         if tag == 'h1':
             self.h1 += 1
         if tag in ('a', 'link') and 'href' in attrs:
             self.links.append(attrs['href'])
         if tag in ('script', 'img') and 'src' in attrs:
             self.links.append(attrs['src'])
+
+    def handle_data(self, data):
+        if self.in_guide:
+            self.guide += data
+
+    def handle_endtag(self, tag):
+        if tag == 'textarea':
+            self.in_guide = False
 
 
 def route(path):
@@ -50,6 +61,8 @@ for path, page in pages.items():
 
 assert (DIST / 'agents.md').read_bytes() == (ROOT.parent / 'AGENTS.md').read_bytes()
 assert (DIST / 'install.sh').read_bytes() == (ROOT.parent / 'install.sh').read_bytes()
+assert pages[DIST / 'index.html'].guide == (ROOT.parent / 'AGENTS.md').read_text()
+assert '{{AGENTS_MD}}' not in (DIST / 'index.html').read_text()
 for slug in ('pi', 'inbox', 'resource-safety', 'spawning'):
     assert '<strong>Unreleased.</strong>' not in (DIST / f'docs/{slug}.html').read_text()
 assert 'text/markdown' in (DIST / '_headers').read_text()
