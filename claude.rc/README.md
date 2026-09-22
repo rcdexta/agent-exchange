@@ -62,7 +62,11 @@ ax resolve MESSAGE_ID abandon
 
 For missing peers or Claude Channels warnings, run `ax doctor` in each affected terminal. It reports the runtime path, fresh broker state, and local Claude eligibility checks without changing privacy settings. See [connection diagnostics](doctor.md).
 
-Closing a terminal makes its endpoint offline. Stored mail waits for its next launch, subject to expiration. Queued, accepted by the host, fetched, and acknowledged are separate delivery states. Acknowledgment proves receipt, not completion of the delegated task.
+When a coding session exits, AX automatically removes it from discovery and releases its active endpoint slot. The broker checks session locks every five seconds; incomplete startups and legacy registrations get a 30-second grace period. A temporary messaging disconnect leaves a running session visible as offline. No cleanup command is needed.
+
+Saved conversations, identities, and mail remain on disk. Launching the same AX name restores its registration and resumes its conversation. Mail to a saved name, including replies after the requester exits, waits for its next launch, subject to expiration. Sending mail does not put an exited session back in discovery. `ax inbox NAME` and `ax status MESSAGE_ID` still show its delivery history.
+
+Queued, accepted by the host, fetched, and acknowledged are separate delivery states. Acknowledgment proves receipt, not completion of the delegated task.
 
 FIFO orders native handoffs. Once a host accepts a message, later mail can proceed even while the agent works on the first task. A genuinely uncertain handoff blocks later mail and is never automatically repeated. Inspect it before using `resolve` to abandon it. Abandonment releases the queue without claiming delivery or canceling work already accepted by the host.
 

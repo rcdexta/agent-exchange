@@ -59,6 +59,7 @@ type peer struct {
 	seen        time.Time
 	conn        *serverConn
 	ready       bool
+	enrolled    time.Time
 	notice      string
 	noticeRetry time.Time
 }
@@ -81,6 +82,8 @@ type broker struct {
 	db          *sql.DB
 	peers       map[string]*peer
 	lastCleanup time.Time
+	dir         string
+	lastReap    time.Time
 }
 
 func openBroker(dir string) (*broker, error) {
@@ -125,6 +128,9 @@ func openBroker(dir string) (*broker, error) {
  CREATE INDEX IF NOT EXISTS receipt_history ON events(message,id);
  CREATE INDEX IF NOT EXISTS terminal_retention ON messages(created) WHERE state IN ('acknowledged','expired','refused','abandoned');
  CREATE INDEX IF NOT EXISTS pending_mailbox ON messages(recipient,seq) WHERE state IN ('queued','handoff_started','delivery_uncertain');
+ CREATE INDEX IF NOT EXISTS agent_names ON agents(json_extract(data,'$.name'));
+ CREATE INDEX IF NOT EXISTS active_agents ON agents(id) WHERE json_extract(data,'$.state')!='exited';
+ CREATE INDEX IF NOT EXISTS queued_expiry ON messages(expires) WHERE state='queued';
  COMMIT;`)
 	if e != nil {
 		return fail(e)
@@ -148,8 +154,8 @@ func openBroker(dir string) (*broker, error) {
 	if mode != "wal" {
 		return fail(errors.New("SQLite WAL unavailable"))
 	}
-	b := &broker{db: db, peers: map[string]*peer{}}
-	rows, e := db.Query("SELECT hash,data,epoch FROM agents")
+	b := &broker{db: db, dir: dir, peers: map[string]*peer{}}
+	rows, e := db.Query("SELECT hash,data,epoch FROM agents WHERE json_extract(data,'$.state')!='exited'")
 	if e != nil {
 		return fail(e)
 	}
@@ -165,6 +171,7 @@ func openBroker(dir string) (*broker, error) {
 			return fail(e)
 		}
 		p.Online = false
+		p.enrolled = time.Now()
 		b.peers[p.ID] = p
 	}
 	e = rows.Err()
@@ -189,6 +196,7 @@ func openBroker(dir string) (*broker, error) {
 	if e != nil {
 		return fail(e)
 	}
+	b.reapSessions(time.Now())
 	return b, nil
 }
 func Serve(ctx context.Context, dir string) error {
@@ -221,6 +229,7 @@ func Serve(ctx context.Context, dir string) error {
 				return
 			case <-t.C:
 				b.mu.Lock()
+				b.reapSessions(time.Now())
 				b.cleanup(time.Now())
 				b.dispatch()
 				b.mu.Unlock()
@@ -372,9 +381,22 @@ func (b *broker) request(c *serverConn, method string, params json.RawMessage) (
 			return nil, errors.New("invalid session registration")
 		}
 		p := b.peers[s.ID]
+		if p == nil {
+			if len(b.peers) >= 256 {
+				return nil, errors.New("endpoint limit reached")
+			}
+			var e error
+			p, e = storedPeer(b.db, s.ID)
+			if e != nil && !errors.Is(e, sql.ErrNoRows) {
+				return nil, e
+			}
+		}
 		if p != nil {
 			if subtle.ConstantTimeCompare([]byte(p.hash), []byte(digest(s.Secret))) != 1 {
 				return nil, errors.New("invalid session credential")
+			}
+			if p.Name != s.Name || p.Host != s.Host {
+				return nil, errors.New("saved identity belongs to another name or harness")
 			}
 			p.State = "starting"
 			p.BindingError = ""
@@ -384,21 +406,23 @@ func (b *broker) request(c *serverConn, method string, params json.RawMessage) (
 			if e := b.save(p); e != nil {
 				return nil, e
 			}
+			p.enrolled = time.Now()
+			b.peers[p.ID] = p
 			return p.Agent, nil
 		}
-		if len(b.peers) >= 256 {
-			return nil, errors.New("endpoint limit reached")
+		var names int
+		if e := b.db.QueryRow("SELECT count(*) FROM agents WHERE json_extract(data,'$.name')=?", s.Name).Scan(&names); e != nil {
+			return nil, e
 		}
-		for _, other := range b.peers {
-			if other.Name == s.Name {
-				return nil, errors.New("name already in use")
-			}
+		if names != 0 {
+			return nil, errors.New("name already in use; resume its saved AX identity")
 		}
 		p = &peer{Agent: Agent{ID: s.ID, Name: s.Name, Host: s.Host, Mesh: s.Mesh, Native: s.Native, State: "starting", Permission: "unknown", Policy: "accept", AllowBypass: s.AllowBypass}, hash: digest(s.Secret)}
 		if e := b.save(p); e != nil {
 			return nil, e
 		}
 		b.peers[p.ID] = p
+		p.enrolled = time.Now()
 		return p.Agent, nil
 	}
 	if method == "ax.connect" {
@@ -632,8 +656,7 @@ func validNative(id string) bool {
 	return regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`).MatchString(id)
 }
 
-// Offline records accumulate and are never pruned, so a map's order can bury a
-// live peer among them. Lead with the peers a caller can actually reach.
+// Lead with connected peers, ahead of sessions whose bridge is reconnecting.
 func (b *broker) list() []Agent {
 	out := []Agent{}
 	for _, p := range b.peers {
@@ -658,7 +681,7 @@ func (b *broker) resolve(target string) (*peer, error) {
 		}
 	}
 	if len(matches) == 0 {
-		return nil, fmt.Errorf("agent %q not found in this AX runtime; launch it with ax, or check whether it is running under a different AX_HOME", target)
+		return b.savedTarget(target)
 	}
 	if len(matches) != 1 {
 		return nil, errors.New("ambiguous agent name; list agents and use agent_id")
@@ -753,7 +776,10 @@ func (b *broker) send(p *peer, target, parent, text, key string, ttl int, reply 
 		if m.State == "queued" || m.State == "expired" || m.State == "refused" || m.State == "abandoned" {
 			return nil, errors.New("message has not been offered")
 		}
-		to = b.peers[m.Sender.ID]
+		to, e = b.messagePeer(b.db, m.Sender.ID)
+		if e != nil {
+			return nil, e
+		}
 		depth = m.Depth + 1
 		if depth > 8 {
 			return nil, errors.New("reply depth limit reached; wait for user guidance")
@@ -866,8 +892,8 @@ func (b *broker) dispatch() {
 			if e != nil {
 				break
 			}
-			sender := b.peers[m.Sender.ID]
-			if sender == nil || !safe(sender) {
+			sender, e := b.messagePeer(b.db, m.Sender.ID)
+			if e != nil || !safe(sender) {
 				break
 			}
 			if b.event(id, "handoff_started", p.epoch) != nil {
@@ -896,6 +922,7 @@ func (b *broker) cleanup(now time.Time) {
 		return
 	}
 	b.lastCleanup = now
+	b.expireArchived(now)
 	// Bound each transaction and keep cleanup off request and heartbeat paths.
 	_, _ = b.db.Exec(`DELETE FROM messages WHERE id IN (
  SELECT id FROM messages WHERE created<? AND state IN ('acknowledged','expired','refused','abandoned')

@@ -275,6 +275,9 @@ func launch(ctx context.Context, dir, host string, args []string, spawnToken str
 	argv = withAXOptions(nativeArgs, argv)
 	cmd := exec.CommandContext(ctx, nativeBin, argv...)
 	cmd.Env = env
+	// The harness retains the name lock even if its AX launcher crashes. Pi
+	// inherits this descriptor through execNative instead of starting a child.
+	cmd.ExtraFiles = []*os.File{lock}
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

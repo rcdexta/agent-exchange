@@ -37,9 +37,10 @@ func (b *broker) inbox(target string) ([]inboxItem, error) {
 		filter = p.ID
 	}
 	// Bound the result and frame size. Bodies are fetched individually.
-	rows, e := b.db.Query(`SELECT id,sender,recipient,state,created,
- substr(json_extract(data,'$.text'),1,160) FROM messages
- WHERE (?='' OR sender=? OR recipient=?) ORDER BY rowid DESC LIMIT 100`, filter, filter, filter)
+	rows, e := b.db.Query(`SELECT m.id,json_extract(s.data,'$.name'),json_extract(r.data,'$.name'),m.state,m.created,
+ substr(json_extract(m.data,'$.text'),1,160) FROM messages m
+ JOIN agents s ON s.id=m.sender JOIN agents r ON r.id=m.recipient
+ WHERE (?='' OR m.sender=? OR m.recipient=?) ORDER BY m.rowid DESC LIMIT 100`, filter, filter, filter)
 	if e != nil {
 		return nil, e
 	}
@@ -49,12 +50,6 @@ func (b *broker) inbox(target string) ([]inboxItem, error) {
 		var item inboxItem
 		if e = rows.Scan(&item.ID, &item.Sender, &item.Recipient, &item.State, &item.Created, &item.Preview); e != nil {
 			return nil, e
-		}
-		if p := b.peers[item.Sender]; p != nil {
-			item.Sender = p.Name
-		}
-		if p := b.peers[item.Recipient]; p != nil {
-			item.Recipient = p.Name
 		}
 		items = append(items, item)
 	}
