@@ -270,3 +270,43 @@ func TestMCPForwardsTypedExpiryAndPendingArguments(t *testing.T) {
 		}
 	}
 }
+
+func TestSnapshotSeparatesNeverStartedFromClosedAndInactive(t *testing.T) {
+	b, _ := localBroker(t)
+	s, conn, _ := endpoint(t, b, "api", testMesh)
+	p := b.peers[s.ID]
+	for _, c := range []struct {
+		name       string
+		connected  bool
+		lifecycled bool
+		activated  bool
+		want       string
+		reason     string
+	}{
+		{"enrolled but never started", false, false, false, "unstarted", "never started"},
+		{"ran before and is now closed", false, true, true, "offline", "offline"},
+		{"connected and still booting", true, false, false, "starting", "starting"},
+		{"running but messaging never activated", true, true, false, "inactive", "not activated AX messaging"},
+		{"running and reachable", true, true, true, "ready", ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			p.conn, p.seen, p.ready = nil, time.Now(), c.activated
+			if c.connected {
+				p.conn = conn
+			}
+			p.State = "starting"
+			if c.lifecycled {
+				p.State = "ready"
+			}
+			if got := agentSnapshot(p).State; got != c.want {
+				t.Fatalf("reported %q, want %q", got, c.want)
+			}
+			if c.reason == "" {
+				return
+			}
+			if got := queueReason(p, p); !strings.Contains(got, c.reason) {
+				t.Fatalf("queue reason %q does not explain %q", got, c.reason)
+			}
+		})
+	}
+}

@@ -449,7 +449,9 @@ func TestResumeWaitsForHostTools(t *testing.T) {
 		t.Fatal("offered before MCP tools were ready", saved.State)
 	}
 	for _, a := range b.list() {
-		if a.ID == to.ID && a.State != "starting" {
+		// The harness reported the session live, so this is not a peer still
+		// booting; it is one whose messaging has not been activated.
+		if a.ID == to.ID && a.State != "inactive" {
 			t.Fatal("reported readiness before tools loaded", a.State)
 		}
 	}
