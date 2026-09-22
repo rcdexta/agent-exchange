@@ -18,7 +18,7 @@ You can also follow [AGENTS.md](AGENTS.md) yourself or browse the [documentation
 
 Install and sign in to your coding harnesses separately.
 
-AX 0.7.1 makes discovery easier to diagnose: reachable peers appear first, inactive sessions have distinct states, and discovery identifies its AX runtime. See the [release notes](claude.rc/release-notes.md). The installer downloads the latest published release.
+AX 0.7.1 makes discovery easier to diagnose: online peers appear first, inactive sessions have distinct states, and discovery identifies its AX runtime. See the [release notes](claude.rc/release-notes.md). The installer downloads the latest published release.
 
 ## Try it
 
