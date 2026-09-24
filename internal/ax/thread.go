@@ -87,7 +87,7 @@ func (b *broker) thread(p *peer, id, after string) (threadPage, error) {
  SELECT ?,coalesce((SELECT rowid FROM messages WHERE id=?),0)
  UNION SELECT id,position FROM seeds
  UNION
- SELECT m.id,m.rowid FROM family f JOIN messages m ON
+ SELECT m.id,m.rowid FROM family f JOIN messages m INDEXED BY message_parent ON
  coalesce(json_extract(m.data,'$.in_reply_to'),json_extract(m.data,'$.resend_of'))=f.id
  WHERE json_extract(m.data,'$.thread_id') IS NULL
  AND ((m.sender=? AND m.recipient=?) OR (m.sender=? AND m.recipient=?))
