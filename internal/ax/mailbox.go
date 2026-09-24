@@ -58,6 +58,8 @@ func agentSnapshot(p *peer) Agent {
 		a.State = "starting"
 	case !p.ready:
 		a.State = "inactive"
+	case lifecycled && p.State != "blocked" && !safe(p):
+		a.State = "permission-blocked"
 	}
 	return a
 }
@@ -100,10 +102,24 @@ func queueReason(to, from *peer) string {
 		return "Recipient is starting; messaging is not ready."
 	case snapshot.State == "blocked":
 		return "Recipient is blocked; mail remains queued."
-	case !safe(to) || from == nil || !safe(from):
-		return "Delivery is blocked by the current permission mode."
+	case !safe(to):
+		return permissionBlockReason("Recipient", to)
+	case from == nil:
+		return "Sender permission state is unavailable; delivery remains blocked."
+	case !safe(from):
+		return permissionBlockReason("Sender", from)
 	default:
 		return "Awaiting the next permitted FIFO handoff; readiness is only a snapshot."
+	}
+}
+
+func permissionBlockReason(role string, p *peer) string {
+	reason := fmt.Sprintf("%s %q has permission mode %q, which blocks AX delivery. ", role, p.Name, p.Permission)
+	switch p.Permission {
+	case "bypassPermissions", "danger-full-access":
+		return reason + "If this native bypass mode is intentional, the user can relaunch the same saved AX name with AX_ALLOW_BYPASS=1; this opts into AX messaging without changing native permissions. Otherwise, use a supported native permission mode. Restarting without changing either setting does not clear the block."
+	default:
+		return reason + "AX does not recognize this permission mode. Check the harness's native permission configuration and AX adapter; do not infer permission from readiness."
 	}
 }
 

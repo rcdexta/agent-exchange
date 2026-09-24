@@ -310,3 +310,54 @@ func TestSnapshotSeparatesNeverStartedFromClosedAndInactive(t *testing.T) {
 		})
 	}
 }
+
+func TestPermissionBlockedDiscoveryAndRecovery(t *testing.T) {
+	for _, blockedSide := range []string{"recipient", "sender"} {
+		t.Run(blockedSide, func(t *testing.T) {
+			b, _ := localBroker(t)
+			_, from, _ := endpoint(t, b, "web", testMesh)
+			_, to, wire := endpoint(t, b, "reviewer", testMesh)
+			blocked := b.peers[to.agent]
+			if blockedSide == "sender" {
+				blocked = b.peers[from.agent]
+			}
+			blocked.Host, blocked.Permission = "grok", "bypassPermissions"
+			m := request(t, b, from, "ax.send", object{"target": "reviewer", "text": "private review request", "client_message_id": "held"}).(Message)
+			b.dispatch()
+			for _, a := range request(t, b, from, "ax.list", object{}).([]Agent) {
+				if a.ID == blocked.ID && (a.State != "permission-blocked" || !a.Online) {
+					t.Fatalf("blocked peer advertised as reachable: %+v", a)
+				}
+			}
+			if !strings.Contains(strings.ToLower(m.Receipt.Evidence), blockedSide) || !strings.Contains(m.Receipt.Evidence, "AX_ALLOW_BYPASS=1") || !strings.Contains(m.Receipt.Evidence, blocked.Name) {
+				t.Fatalf("missing actionable permission reason: %+v", m.Receipt)
+			}
+			page := request(t, b, to, "ax.pending", object{}).(pendingPage)
+			if len(page.Messages) != 1 || page.Messages[0].Preview != "" || page.Messages[0].State != "queued" || !strings.Contains(page.Messages[0].Evidence, "AX_ALLOW_BYPASS=1") {
+				t.Fatalf("pending listing leaked or lost held request: %+v", page)
+			}
+			if _, err := b.request(to, "ax.get_message", raw(object{"message_id": m.ID})); err == nil {
+				t.Fatal("unoffered content was readable")
+			}
+			// An intentional AX opt-in clears the diagnostic without altering
+			// native permissions; returning to a supported mode also clears it.
+			blocked.AllowBypass = true
+			if agentSnapshot(blocked).State != "ready" || blocked.Permission != "bypassPermissions" {
+				t.Fatal("opt-in changed native permissions or retained the block")
+			}
+			blocked.AllowBypass, blocked.Permission = false, "default"
+			if agentSnapshot(blocked).State != "ready" {
+				t.Fatal("permission recovery remained blocked")
+			}
+			wire.SetDeadline(time.Now().Add(time.Second))
+			offered := make(chan packet, 1)
+			go func() { p, _ := readFrame(wire); offered <- p }()
+			b.dispatch()
+			var delivered Message
+			json.Unmarshal((<-offered).Params, &delivered)
+			if delivered.ID != m.ID {
+				t.Fatalf("recovery failed to hand off the original request: %+v", delivered)
+			}
+		})
+	}
+}

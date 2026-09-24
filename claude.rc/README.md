@@ -49,6 +49,8 @@ AX authorizes its own messaging tools. Grok's adapter answers ordinary permissio
 
 Unknown permission modes and unapproved bypass modes hold mail. An explicit bypass launch through Codex or Grok also opts that endpoint into AX messaging. `AX_ALLOW_BYPASS=1` provides the same opt-in for an intentionally configured endpoint; it does not change native permissions. Codex applies its explicit bypass choice through its private native session API, including resume.
 
+An active session held by this gate appears as `permission-blocked`, even if its native harness is idle. Send receipts and `list_pending` identify which endpoint is blocked and explain recovery. A saved Grok conversation can resume in bypass mode without a bypass flag on the new AX launch; restarting that name alone does not supply AX's opt-in. If that mode is intentional, relaunch the saved name with `AX_ALLOW_BYPASS=1`, or choose a supported native permission mode. The original queued message remains in place until delivery or expiry; do not resend it. A permission hold is not a terminal delivery failure, so it does not create a failure notification before expiry.
+
 ## Inspect and recover
 
 ```sh
