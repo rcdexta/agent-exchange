@@ -254,6 +254,14 @@ func TestThreadBoundsBodyAndTraversal(t *testing.T) {
 	if len(seen) != threadScanLimit+2 {
 		t.Fatalf("bounded traversal lost paginated messages: %d", len(seen))
 	}
+	// Legacy history reports its window limit rather than claiming completeness.
+	if _, err := b.db.Exec("UPDATE messages SET data=json_remove(data,'$.thread_id')"); err != nil {
+		t.Fatal(err)
+	}
+	page = request(t, b, from, "ax.thread", object{"message_id": first.ID}).(threadPage)
+	if !page.Limited || len(page.Messages) != 1 || page.Next != first.ID {
+		t.Fatal("legacy fan-out lost its bounds")
+	}
 	var specs []object = toolList()
 	for _, spec := range specs {
 		if spec["name"] == "get_thread" {
@@ -262,5 +270,44 @@ func TestThreadBoundsBodyAndTraversal(t *testing.T) {
 				t.Fatal("history advertised as a write")
 			}
 		}
+	}
+}
+
+func TestThreadMixedLegacyAndIndexedPaginationKeepsOldContext(t *testing.T) {
+	b, _ := localBroker(t)
+	_, from, _ := endpoint(t, b, "web", testMesh)
+	_, _, _ = endpoint(t, b, "api", testMesh)
+	first := request(t, b, from, "ax.send", object{"target": "api", "text": "request", "client_message_id": "first"}).(Message)
+	legacy := followup(t, b, from, first.ID, "legacy", "old context")
+	if _, err := b.db.Exec("UPDATE messages SET data=json_remove(data,'$.thread_id')"); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < threadScanLimit+5; i++ {
+		if _, err := b.db.Exec("UPDATE messages SET created=0"); err != nil {
+			t.Fatal(err)
+		}
+		followup(t, b, from, first.ID, fmt.Sprint(i), fmt.Sprint(i))
+	}
+	firstPage := request(t, b, from, "ax.thread", object{"message_id": first.ID}).(threadPage)
+	if firstPage.Messages[1].ID != legacy.ID {
+		t.Fatal("indexed rows starved older legacy context")
+	}
+	seen := map[string]bool{}
+	after := ""
+	for {
+		page := request(t, b, from, "ax.thread", object{"message_id": first.ID, "after_message_id": after}).(threadPage)
+		for _, m := range page.Messages {
+			if seen[m.ID] {
+				t.Fatal("repeated mixed-history row")
+			}
+			seen[m.ID] = true
+		}
+		if page.Next == "" {
+			break
+		}
+		after = page.Next
+	}
+	if len(seen) != threadScanLimit+7 {
+		t.Fatalf("mixed history skipped rows: %d", len(seen))
 	}
 }

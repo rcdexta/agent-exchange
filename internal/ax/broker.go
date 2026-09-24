@@ -132,7 +132,7 @@ func openBroker(dir string) (*broker, error) {
  CREATE INDEX IF NOT EXISTS pending_mailbox ON messages(recipient,seq) WHERE state IN ('queued','handoff_started','delivery_uncertain');
  CREATE INDEX IF NOT EXISTS agent_names ON agents(json_extract(data,'$.name'));
  CREATE INDEX IF NOT EXISTS active_agents ON agents(id) WHERE json_extract(data,'$.state')!='exited';
- CREATE INDEX IF NOT EXISTS message_parent ON messages(coalesce(json_extract(data,'$.in_reply_to'),json_extract(data,'$.resend_of')));
+ CREATE INDEX IF NOT EXISTS message_parent ON messages(coalesce(json_extract(data,'$.in_reply_to'),json_extract(data,'$.resend_of')),json_extract(data,'$.thread_id'));
  CREATE INDEX IF NOT EXISTS message_thread ON messages(json_extract(data,'$.thread_id'));
  CREATE INDEX IF NOT EXISTS queued_expiry ON messages(expires) WHERE state='queued';
  COMMIT;`)

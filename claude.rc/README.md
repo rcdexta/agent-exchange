@@ -69,9 +69,10 @@ and 64 KiB of text. Incoming text is withheld until offered, and while current
 permission or recipient policy blocks apply. Reading changes no acknowledgment
 or delivery state and does not authorize replaying old tasks.
 
-Thread queries examine at most 256 entries per call. New messages have indexed
-thread IDs and paginate beyond that bound. Older messages use a bounded parent
-walk; `history_limited` reports when the scan bound is reached. Cleanup can remove
+New messages have indexed thread IDs and paginate beyond 256 messages. Older
+messages use a parent walk with a 256-message history window; `history_limited`
+reports when that window is reached. The database walk has a 100 ms deadline
+to interrupt expensive legacy scans rather than hold the broker lock. Cleanup can remove
 history, and a deleted pagination cursor requires starting a fresh page. These
 limits keep context reads bounded without a mailbox migration or bulk backfill.
 
