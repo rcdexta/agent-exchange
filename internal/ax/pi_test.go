@@ -59,6 +59,65 @@ func TestPiPreservesArgumentsAndSavedConversation(t *testing.T) {
 	}
 }
 
+func TestPiLauncherForwardsSupportedNativeName(t *testing.T) {
+	if dir := os.Getenv("AX_TEST_PI_NAME_DIR"); dir != "" {
+		if err := Launch(context.Background(), dir, "pi", []string{"-n", "worker"}); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+	for _, tc := range []struct {
+		name, help   string
+		want, resume bool
+	}{
+		{"supported", "Options:\n  --name, -n <name> Set session name\n", true, false},
+		{"older version", "Options:\n  --session <path> Resume\n", false, false},
+		{"resume", "Options:\n  --name, -n <name> Set session name\n", true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir, bin := startTestServer(t), testDir(t)
+			out := filepath.Join(bin, "pi.args")
+			script := "#!/bin/sh\nif [ \"$1\" = --help ]; then printf '%s' " + shellQuote(tc.help) + "; exit 0; fi\nprintf '%s\\0' \"$@\" > " + shellQuote(out) + "\n"
+			if err := os.WriteFile(filepath.Join(bin, "pi"), []byte(script), 0700); err != nil {
+				t.Fatal(err)
+			}
+			saved := "/original repo/session.jsonl"
+			if tc.resume {
+				if err := privateDir(filepath.Join(dir, "sessions")); err != nil {
+					t.Fatal(err)
+				}
+				s := Session{ID: randomID("agt_"), Secret: randomID("") + randomID(""), Name: "worker", Host: "pi", Mesh: testMesh, Native: uuid(), NativeFile: saved}
+				if err := saveSession(filepath.Join(dir, "sessions", "worker.json"), s); err != nil {
+					t.Fatal(err)
+				}
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestPiLauncherForwardsSupportedNativeName$")
+			cmd.Env = append(os.Environ(), "AX_TEST_PI_NAME_DIR="+dir, "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+			if output, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("launch: %v\n%s", err, output)
+			}
+			data, err := os.ReadFile(out)
+			if err != nil {
+				t.Fatal(err)
+			}
+			args := strings.Split(strings.TrimSuffix(string(data), "\x00"), "\x00")
+			flags := map[string]string{}
+			for i := 0; i+1 < len(args); i += 2 {
+				flags[args[i]] = args[i+1]
+			}
+			if (flags["--name"] == "worker") != tc.want || flags["-e"] == "" {
+				t.Fatalf("bad native options: %q", args)
+			}
+			if tc.resume && flags["--session"] != saved {
+				t.Fatalf("changed saved conversation: %q", args)
+			}
+		})
+	}
+}
+
 func TestPiNativeExecPreservesPIDAndNameLock(t *testing.T) {
 	if os.Getenv("AX_TEST_PI_EXEC") == "1" {
 		lock, err := lockFile(os.Getenv("AX_TEST_LOCK"))

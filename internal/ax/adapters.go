@@ -34,7 +34,7 @@ var harnesses = map[string]harnessAdapter{
 	"codex":    {toolPrefix: "ax.", nativeID: validNative, readyOnDiscovery: true},
 	"grok":     {toolPrefix: "ax__", nativeID: validNative, readyOnDiscovery: true},
 	"opencode": {toolPrefix: "ax_", nativeID: regexp.MustCompile(`^ses_[a-zA-Z0-9]+$`).MatchString, readyOnDiscovery: true},
-	"pi":       {toolPrefix: "ax_", nativeID: validNative, nativeLaunch: true},
+	"pi":       {toolPrefix: "ax_", nativeID: validNative, nameFlag: "--name", nativeLaunch: true},
 }
 
 func init() {

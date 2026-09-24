@@ -152,6 +152,8 @@ type pendingMessage struct {
 	Sender       pendingSender `json:"sender"`
 	Seq          int64         `json:"recipient_seq"`
 	Parent       string        `json:"in_reply_to,omitempty"`
+	ResendOf     string        `json:"resend_of,omitempty"`
+	Thread       string        `json:"thread_id,omitempty"`
 	Age          int64         `json:"age_seconds"`
 	Expires      int64         `json:"expires_at_ms"`
 	State        string        `json:"status"`
@@ -196,7 +198,7 @@ func (b *broker) pending(p *peer, after int64) (pendingPage, error) {
 		if err = json.Unmarshal([]byte(data), &m); err != nil {
 			return out, err
 		}
-		item := pendingMessage{ID: m.ID, Sender: pendingSender{m.Sender.ID, m.Sender.Name, m.Sender.Host}, Seq: m.Seq, Parent: m.Parent, Age: max(0, (out.At-m.Created)/1000), Expires: m.Expires, State: state, Evidence: deliveryEvidence(state)}
+		item := pendingMessage{ID: m.ID, Sender: pendingSender{m.Sender.ID, m.Sender.Name, m.Sender.Host}, Seq: m.Seq, Parent: m.Parent, ResendOf: m.ResendOf, Thread: m.Thread, Age: max(0, (out.At-m.Created)/1000), Expires: m.Expires, State: state, Evidence: deliveryEvidence(state)}
 		sender := b.peers[m.Sender.ID]
 		if sender == nil {
 			sender = &peer{}

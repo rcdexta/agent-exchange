@@ -51,6 +51,33 @@ Unknown permission modes and unapproved bypass modes hold mail. An explicit bypa
 
 An active session held by this gate appears as `permission-blocked`, even if its native harness is idle. Send receipts and `list_pending` identify which endpoint is blocked and explain recovery. A saved Grok conversation can resume in bypass mode without a bypass flag on the new AX launch; restarting that name alone does not supply AX's opt-in. If that mode is intentional, relaunch the saved name with `AX_ALLOW_BYPASS=1`, or choose a supported native permission mode. The original queued message remains in place until delivery or expiry; do not resend it. A permission hold is not a terminal delivery failure, so it does not create a failure notification before expiry.
 
+## Follow up and read a thread
+
+Ask the sending agent to add instructions to its original request. The
+`follow_up` tool takes the outgoing `message_id` and the addendum's `text`;
+it routes to the same recipient without looking up a name again. Each addendum
+has its own delivery status, expiry, and retry key. It does not acknowledge the
+original or claim that work finished. Replies still use `reply`.
+
+New messages include `thread_id`; replies and addenda also retain `in_reply_to`.
+Follow-ups can be queued before the first message arrives. Expired, refused,
+and abandoned requests cannot receive addenda. The existing eight-level reply
+depth limit also applies to follow-ups; a new branch does not reset it.
+
+When context is needed, `get_thread` reads retained messages between the two
+participants. Pass any message ID in that thread, then the returned
+`next_after_message_id` to continue. Each page contains at most twenty messages
+and 64 KiB of text. Incoming text is withheld until offered, and while current
+permission or recipient policy blocks apply. Reading changes no acknowledgment
+or delivery state and does not authorize replaying old tasks.
+
+New messages have indexed thread IDs and paginate beyond 256 messages. Older
+messages use a parent walk with a 256-message history window; `history_limited`
+reports when that window is reached. The database walk has a 100 ms deadline
+to interrupt expensive legacy scans rather than hold the broker lock. Cleanup can remove
+history, and a deleted pagination cursor requires starting a fresh page. These
+limits keep context reads bounded without a mailbox migration or bulk backfill.
+
 ## Inspect and recover
 
 ```sh
@@ -69,6 +96,17 @@ When a coding session exits, AX automatically removes it from discovery and rele
 Saved conversations, identities, and mail remain on disk. Launching the same AX name restores its registration and resumes its conversation. Mail to a saved name, including replies after the requester exits, waits for its next launch, subject to expiration. Sending mail does not put an exited session back in discovery. `ax inbox NAME` and `ax status MESSAGE_ID` still show its delivery history.
 
 Queued, accepted by the host, fetched, and acknowledged are separate delivery states. Acknowledgment proves receipt, not completion of the delegated task.
+
+Ask the original sending agent to resend an expired request by its message ID.
+The `resend_message` tool copies the full stored text and original recipient into
+a new delivery attempt, linked by `resend_of`. It preserves the old history and
+uses a fresh twelve-hour expiry, or a requested `ttl_seconds` up to seven days.
+Reuse the returned `client_message_id` and unchanged arguments when retrying that
+attempt; generating another key can create another request. Only expired mail
+can be resent. Accepted, acknowledged, refused, abandoned, queued, and uncertain
+messages are rejected. Normal routing, permission, rate, and capacity limits
+still apply. Resend requires the original message to remain in mailbox history.
+
 
 FIFO orders native handoffs. Once a host accepts a message, later mail can proceed even while the agent works on the first task. A genuinely uncertain handoff blocks later mail and is never automatically repeated. Inspect it before using `resolve` to abandon it. Abandonment releases the queue without claiming delivery or canceling work already accepted by the host.
 

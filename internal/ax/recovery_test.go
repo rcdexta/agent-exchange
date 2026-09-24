@@ -114,85 +114,101 @@ func TestCompletedResponseSurvivesConnectionClose(t *testing.T) {
 }
 
 func TestSendRecoversLostResponseWithoutDuplicate(t *testing.T) {
-	store, dir := localBroker(t)
-	s, owner, wire := endpoint(t, store, "web", testMesh)
-	_, _, _ = endpoint(t, store, "api", testMesh)
-	// Use an already-bound Claude fixture so the test does not depend on a
-	// running harness. All tool operations still pass through the real broker.
-	s.Host, s.Started = "claude", true
-	file := filepath.Join(dir, "session.json")
-	if err := saveSession(file, s); err != nil {
-		t.Fatal(err)
-	}
-	bridge := &bridge{ctx: context.Background(), dir: dir, file: file, session: s, c: newClient(wire)}
-	defer func() {
-		bridge.mu.Lock()
-		c := bridge.c
-		bridge.mu.Unlock()
-		if c != nil {
-			c.close()
-		}
-	}()
-	done := make(chan error, 1)
-	go func() {
-		dropped := false
-		for {
-			p, err := readFrame(owner)
-			if err != nil {
-				done <- nil
-				return
+	for _, method := range []string{"ax.send", "ax.resend", "ax.follow_up"} {
+		t.Run(method, func(t *testing.T) {
+			store, dir := localBroker(t)
+			s, owner, wire := endpoint(t, store, "web", testMesh)
+			_, _, _ = endpoint(t, store, "api", testMesh)
+			args := object{"target": "api", "text": "review", "client_message_id": "stable_key"}
+			wantCount := 1
+			if method == "ax.resend" {
+				original := expiredRequest(t, store, owner, "original", "review")
+				args = object{"message_id": original.ID, "client_message_id": "stable_key"}
+				wantCount++
 			}
-			store.mu.Lock()
-			value, err := store.request(owner, p.Method, p.Params)
-			store.mu.Unlock()
-			if err != nil {
-				done <- err
-				return
+			if method == "ax.follow_up" {
+				original := request(t, store, owner, "ax.send", object{"target": "api", "text": "review", "client_message_id": "original"}).(Message)
+				args = object{"message_id": original.ID, "text": "additional context", "client_message_id": "stable_key"}
+				wantCount++
 			}
-			if p.Method == "ax.send" && !dropped {
-				dropped = true
-				owner.Close()
-				store.disconnect(owner)
-				x, y := net.Pipe()
-				owner = &serverConn{Conn: x}
-				defer owner.Close()
-				store.mu.Lock()
-				_, err = store.request(owner, "ax.connect", raw(object{"version": "1", "agent_id": s.ID, "secret": s.Secret}))
-				store.mu.Unlock()
-				if err != nil {
-					y.Close()
-					done <- err
-					return
-				}
+			// Use an already-bound Claude fixture so the test does not depend on a
+			// running harness. All tool operations still pass through the real broker.
+			s.Host, s.Started = "claude", true
+			file := filepath.Join(dir, "session.json")
+			if err := saveSession(file, s); err != nil {
+				t.Fatal(err)
+			}
+			bridge := &bridge{ctx: context.Background(), dir: dir, file: file, session: s, c: newClient(wire)}
+			defer func() {
 				bridge.mu.Lock()
-				bridge.c = newClient(y)
-				bridge.changedLocked()
+				c := bridge.c
 				bridge.mu.Unlock()
-				continue
+				if c != nil {
+					c.close()
+				}
+			}()
+			done := make(chan error, 1)
+			go func() {
+				dropped := false
+				for {
+					p, err := readFrame(owner)
+					if err != nil {
+						done <- nil
+						return
+					}
+					store.mu.Lock()
+					value, err := store.request(owner, p.Method, p.Params)
+					store.mu.Unlock()
+					if err != nil {
+						done <- err
+						return
+					}
+					if p.Method == method && !dropped {
+						dropped = true
+						owner.Close()
+						store.disconnect(owner)
+						x, y := net.Pipe()
+						owner = &serverConn{Conn: x}
+						defer owner.Close()
+						store.mu.Lock()
+						_, err = store.request(owner, "ax.connect", raw(object{"version": "1", "agent_id": s.ID, "secret": s.Secret}))
+						store.mu.Unlock()
+						if err != nil {
+							y.Close()
+							done <- err
+							return
+						}
+						bridge.mu.Lock()
+						bridge.c = newClient(y)
+						bridge.changedLocked()
+						bridge.mu.Unlock()
+						continue
+					}
+					if err = writeFrame(owner, packet{ID: p.ID, Result: raw(value)}); err != nil {
+						done <- err
+						return
+					}
+					if p.Method == method {
+						done <- nil
+						return
+					}
+				}
+			}()
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			var m Message
+			err := bridge.toolCall(ctx, nil, method, args, &m)
+			if err != nil {
+				t.Fatal(err)
 			}
-			if err = writeFrame(owner, packet{ID: p.ID, Result: raw(value)}); err != nil {
-				done <- err
-				return
+			if err = <-done; err != nil {
+				t.Fatal(err)
 			}
-			if p.Method == "ax.send" {
-				done <- nil
-				return
+			var count int
+			if err = store.db.QueryRow("SELECT count(*) FROM messages WHERE sender=?", s.ID).Scan(&count); err != nil || count != wantCount || m.ID == "" {
+				t.Fatalf("lost response duplicated mail: count=%d message=%+v error=%v", count, m, err)
 			}
-		}
-	}()
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	var m Message
-	err := bridge.toolCall(ctx, nil, "ax.send", object{"target": "api", "text": "review", "client_message_id": "stable_key"}, &m)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = <-done; err != nil {
-		t.Fatal(err)
-	}
-	var count int
-	if err = store.db.QueryRow("SELECT count(*) FROM messages WHERE sender=?", s.ID).Scan(&count); err != nil || count != 1 || m.ID == "" {
-		t.Fatalf("lost response duplicated mail: count=%d message=%+v error=%v", count, m, err)
+		})
 	}
 }
 

@@ -45,6 +45,8 @@ type Message struct {
 	Recipient string       `json:"recipient_id"`
 	Text      string       `json:"text"`
 	Parent    string       `json:"in_reply_to,omitempty"`
+	ResendOf  string       `json:"resend_of,omitempty"`
+	Thread    string       `json:"thread_id,omitempty"`
 	Seq       int64        `json:"recipient_seq"`
 	Created   int64        `json:"created_at_ms"`
 	Expires   int64        `json:"expires_at_ms"`
@@ -130,6 +132,8 @@ func openBroker(dir string) (*broker, error) {
  CREATE INDEX IF NOT EXISTS pending_mailbox ON messages(recipient,seq) WHERE state IN ('queued','handoff_started','delivery_uncertain');
  CREATE INDEX IF NOT EXISTS agent_names ON agents(json_extract(data,'$.name'));
  CREATE INDEX IF NOT EXISTS active_agents ON agents(id) WHERE json_extract(data,'$.state')!='exited';
+ CREATE INDEX IF NOT EXISTS message_parent ON messages(coalesce(json_extract(data,'$.in_reply_to'),json_extract(data,'$.resend_of')),json_extract(data,'$.thread_id'));
+ CREATE INDEX IF NOT EXISTS message_thread ON messages(json_extract(data,'$.thread_id'));
  CREATE INDEX IF NOT EXISTS queued_expiry ON messages(expires) WHERE state='queued';
  COMMIT;`)
 	if e != nil {
@@ -361,6 +365,7 @@ func (b *broker) request(c *serverConn, method string, params json.RawMessage) (
 		Text           string          `json:"text"`
 		ClientID       string          `json:"client_message_id"`
 		MessageID      string          `json:"message_id"`
+		AfterMessage   string          `json:"after_message_id"`
 		NotificationID string          `json:"notification_id"`
 		Receipt        string          `json:"receipt"`
 		TTL            json.RawMessage `json:"ttl_seconds"`
@@ -605,12 +610,14 @@ func (b *broker) request(c *serverConn, method string, params json.RawMessage) (
 			return nil, err
 		}
 		return b.pending(p, after)
-	case "ax.send", "ax.reply":
+	case "ax.thread":
+		return b.thread(p, a.MessageID, a.AfterMessage)
+	case "ax.send", "ax.reply", "ax.resend", "ax.follow_up":
 		ttl, err := integerArgument(a.TTL, "ttl_seconds", defaultTTL, 1, maxTTL)
 		if err != nil {
 			return nil, err
 		}
-		return b.send(p, a.Target, a.MessageID, a.Text, a.ClientID, int(ttl), method == "ax.reply")
+		return b.send(p, a.Target, a.MessageID, a.Text, a.ClientID, int(ttl), method)
 	case "ax.get_message", "ax.ack", "ax.receipt", "ax.status":
 		m, e := b.message(a.MessageID)
 		if e != nil {
@@ -737,8 +744,9 @@ func safe(p *peer) bool {
 	}
 	return false
 }
-func (b *broker) send(p *peer, target, parent, text, key string, ttl int, reply bool) (any, error) {
-	if !validID.MatchString(key) || !utf8.ValidString(text) || len(text) == 0 || len(text) > maxText {
+func (b *broker) send(p *peer, target, parent, text, key string, ttl int, method string) (any, error) {
+	reply, resend, followup := method == "ax.reply", method == "ax.resend", method == "ax.follow_up"
+	if !validID.MatchString(key) || (!resend && (!utf8.ValidString(text) || len(text) == 0 || len(text) > maxText)) {
 		return nil, errors.New("provide client_message_id and 1 to 65536 bytes of UTF-8 text")
 	}
 	if ttl == 0 {
@@ -748,6 +756,11 @@ func (b *broker) send(p *peer, target, parent, text, key string, ttl int, reply 
 		return nil, fmt.Errorf("TTL must be between 1 and %d seconds", maxTTL)
 	}
 	hash := digest(string(raw([]any{target, parent, text, ttl, reply})))
+	if resend {
+		hash = digest(string(raw([]any{method, parent, ttl})))
+	} else if followup {
+		hash = digest(string(raw([]any{method, parent, text, ttl})))
+	}
 	var existing, prior string
 	e := b.db.QueryRow("SELECT id,request_hash FROM messages WHERE sender=? AND client_id=?", p.ID, key).Scan(&existing, &prior)
 	if e == nil {
@@ -765,18 +778,47 @@ func (b *broker) send(p *peer, target, parent, text, key string, ttl int, reply 
 	}
 	var to *peer
 	depth := 0
-	if reply {
+	resendOf, thread := "", ""
+	if resend {
+		m, err := b.message(parent)
+		if err != nil {
+			return nil, err
+		}
+		if m.Sender.ID != p.ID {
+			return nil, errors.New("only the original sender can resend a message")
+		}
+		if m.State != "expired" {
+			return nil, errors.New("only expired messages can be resent; never replay accepted or uncertain work")
+		}
+		to, e = b.messagePeer(b.db, m.Recipient)
+		if e != nil {
+			return nil, e
+		}
+		text, parent, depth, resendOf = m.Text, m.Parent, m.Depth, m.ID
+		thread, e = b.threadRoot(m)
+		if e != nil {
+			return nil, e
+		}
+	} else if reply || followup {
 		m, e := b.message(parent)
 		if e != nil {
 			return nil, e
 		}
-		if m.Recipient != p.ID {
-			return nil, errors.New("cannot reply to another endpoint's message")
+		if (reply && m.Recipient != p.ID) || (followup && m.Sender.ID != p.ID) {
+			return nil, errors.New("only the recipient may reply; only the sender may follow up")
 		}
-		if m.State == "queued" || m.State == "expired" || m.State == "refused" || m.State == "abandoned" {
-			return nil, errors.New("message has not been offered")
+		if (reply && m.State == "queued") || m.State == "expired" || m.State == "refused" || m.State == "abandoned" {
+			return nil, errors.New("message is not eligible for a reply or follow-up")
 		}
-		to, e = b.messagePeer(b.db, m.Sender.ID)
+		targetID := m.Sender.ID
+		if followup {
+			targetID = m.Recipient
+		}
+		to, e = b.messagePeer(b.db, targetID)
+		if e != nil {
+			return nil, e
+		}
+		thread, e = b.threadRoot(m)
 		if e != nil {
 			return nil, e
 		}
@@ -810,7 +852,7 @@ func (b *broker) send(p *peer, target, parent, text, key string, ttl int, reply 
 	if count >= 30 {
 		return nil, errors.New("send rate limit reached")
 	}
-	if e = b.db.QueryRow("SELECT count(*) FROM messages WHERE sender=? AND recipient=? AND json_extract(data,'$.text')=? AND created>?", p.ID, to.ID, text, time.Now().Add(-10*time.Second).UnixMilli()).Scan(&count); e != nil {
+	if e = b.db.QueryRow("SELECT count(*) FROM messages WHERE sender=? AND recipient=? AND json_extract(data,'$.text')=? AND created>? AND id!=?", p.ID, to.ID, text, time.Now().Add(-10*time.Second).UnixMilli(), resendOf).Scan(&count); e != nil {
 		return nil, e
 	}
 	if count > 0 {
@@ -826,7 +868,11 @@ func (b *broker) send(p *peer, target, parent, text, key string, ttl int, reply 
 		return nil, e
 	}
 	now := time.Now()
-	m := Message{ID: randomID("msg_"), Sender: p.Agent, Recipient: to.ID, Text: text, Parent: parent, Seq: seq, Created: now.UnixMilli(), Expires: now.Add(time.Duration(ttl) * time.Second).UnixMilli(), Depth: depth, State: "queued"}
+	id := randomID("msg_")
+	if thread == "" {
+		thread = id
+	}
+	m := Message{ID: id, Thread: thread, Sender: p.Agent, Recipient: to.ID, Text: text, Parent: parent, ResendOf: resendOf, Seq: seq, Created: now.UnixMilli(), Expires: now.Add(time.Duration(ttl) * time.Second).UnixMilli(), Depth: depth, State: "queued"}
 	if _, e = tx.Exec("INSERT INTO messages VALUES(?,?,?,?,?,?,?,?,?,?)", m.ID, p.ID, to.ID, key, hash, seq, m.State, string(raw(m)), m.Created, m.Expires); e != nil {
 		return nil, e
 	}
@@ -911,7 +957,7 @@ func (b *broker) dispatch() {
 
 func dispatchAfter(method string) bool {
 	switch method {
-	case "ax.ping", "ax.heartbeat", "ax.list", "ax.pending", "ax.inspect", "ax.status", "ax.inspect_message", "ax.inbox", "ax.inbox_message", "ax.notifications":
+	case "ax.ping", "ax.heartbeat", "ax.list", "ax.pending", "ax.thread", "ax.inspect", "ax.status", "ax.inspect_message", "ax.inbox", "ax.inbox_message", "ax.notifications":
 		return false
 	}
 	return true
