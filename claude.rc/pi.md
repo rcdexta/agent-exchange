@@ -16,6 +16,8 @@ ax pi --name worker
 
 In another terminal, start a named peer, for example `ax codex --name web`. Ask Pi: **“Ask web what it is working on.”** Both agents use the same broker and durable mailbox. Names work across repositories for the same OS user.
 
+When the installed Pi version supports a native session display name, AX passes its name to Pi too. The same name is applied when resuming the saved conversation. Versions without that option still launch; AX keeps the messaging name without passing an unsupported argument.
+
 Opening a Pi pane through `ax spawn` or `spawn_agent` is not supported yet. Start Pi in a terminal yourself. A Pi session can still launch other supported harnesses when you explicitly request it.
 
 ## Resume and switch conversations

@@ -8,6 +8,8 @@ Add one entry to `harnesses` in `internal/ax/adapters.go`, plus a preparation fu
 
 An adapter supplies the native tool-name prefix, session-ID validator, and a preparation function. That function receives the original native arguments and environment and returns the launch arguments, environment, cleanup function, or an actionable error. Add the command to CLI dispatch and doctor output.
 
+If the harness accepts a session display-name option, set `nameFlag` in its registry entry. AX passes its own name through only when the installed CLI advertises that exact option. The help probe has a three-second timeout; missing or unsupported options leave the launch working. Claude and Pi use this path. An option that selects an agent definition is not a session display name.
+
 Use a native API, lifecycle hook, or trusted plugin to identify the conversation the user selected. `bindAdapter` rejects rebinding an AX name to a different conversation. Do not discover identity by searching transcripts or observing terminal text.
 
 For a Go integration, `startAdapterHost` accepts a native wake callback. Return success only when the host confirms acceptance. Grok demonstrates this with ACP prompt IDs and native queue events; a socket write alone is insufficient.
