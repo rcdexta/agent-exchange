@@ -41,7 +41,7 @@ try {
   assert.equal(statuses.length, 0, 'factory started background resources');
   assert.equal(tools.size, JSON.parse(process.env.AX_TEST_PI_TOOLS).length);
   assert.equal(tools.get("ax_spawn_agent").parameters.properties.args.type, "array");
-  for (const name of ['ax_send_message', 'ax_reply']) {
+  for (const name of ['ax_send_message', 'ax_reply', 'ax_resend_message']) {
     const ttl = tools.get(name).parameters.properties.ttl_seconds;
     assert.equal(ttl.type, 'integer');
     assert.equal(ttl.minimum, 1);
