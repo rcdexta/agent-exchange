@@ -222,6 +222,8 @@ func TestThreadBoundsBodyAndTraversal(t *testing.T) {
 		t.Fatal("body truncated")
 	}
 	for i := 0; i < threadScanLimit; i++ {
+		// This in-process fixture has no bridge to keep its lease alive.
+		request(t, b, from, "ax.heartbeat", object{})
 		// Age stored rate-accounting timestamps only; insertion order and contents
 		// remain intact. Exercise the real send path without waiting for minutes.
 		if _, err := b.db.Exec("UPDATE messages SET created=0"); err != nil {
@@ -283,6 +285,7 @@ func TestThreadMixedLegacyAndIndexedPaginationKeepsOldContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := 0; i < threadScanLimit+5; i++ {
+		request(t, b, from, "ax.heartbeat", object{})
 		if _, err := b.db.Exec("UPDATE messages SET created=0"); err != nil {
 			t.Fatal(err)
 		}
