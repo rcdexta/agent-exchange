@@ -69,7 +69,7 @@ func TestMessageTTLValidationAndRetention(t *testing.T) {
 	_, from, _ := endpoint(t, b, "web", testMesh)
 	_, to, _ := endpoint(t, b, "api", testMesh)
 	for _, value := range []string{"null", "0", "-1", "1.5", `"60"`, "true", "{}", "[]", "604801", "999999999999999999999"} {
-		for _, method := range []string{"ax.send", "ax.reply"} {
+		for _, method := range []string{"ax.send", "ax.reply", "ax.resend"} {
 			args := object{"target": "api", "message_id": "unused", "text": "invalid", "client_message_id": "bad", "ttl_seconds": json.RawMessage(value)}
 			if _, err := b.request(from, method, raw(args)); err == nil || !strings.Contains(err.Error(), "ttl_seconds") {
 				t.Fatalf("%s accepted TTL %s: %v", method, value, err)
@@ -235,6 +235,7 @@ func TestMCPForwardsTypedExpiryAndPendingArguments(t *testing.T) {
 		{"name": "list_pending", "arguments": object{"after_seq": 0, "target": to.ID}},
 		{"name": "send_message", "arguments": object{"target": "api", "text": "invalid", "ttl_seconds": 0.5}},
 		{"name": "list_pending", "arguments": object{"after_seq": -1}},
+		{"name": "resend_message", "arguments": object{"message_id": "missing", "client_message_id": "resend_mcp"}},
 	} {
 		json.NewEncoder(&in).Encode(packet{JSONRPC: "2.0", ID: raw(i + 1), Method: "tools/call", Params: raw(call)})
 	}
@@ -244,7 +245,7 @@ func TestMCPForwardsTypedExpiryAndPendingArguments(t *testing.T) {
 		t.Fatal(err)
 	}
 	dec := json.NewDecoder(&out)
-	for i := 0; i < 4; i++ {
+	for i := 0; i < 5; i++ {
 		var frame packet
 		var response struct {
 			IsError bool                    `json:"isError"`
@@ -260,6 +261,12 @@ func TestMCPForwardsTypedExpiryAndPendingArguments(t *testing.T) {
 			var result struct{ Message Message }
 			if err := json.Unmarshal([]byte(response.Content[0].Text), &result); err != nil || result.Message.Expires-result.Message.Created != 172800000 || result.Message.Receipt == nil || result.Message.Receipt.ClientID != "mcp_send" {
 				t.Fatalf("MCP stripped expiry or receipt: %+v %v", result, err)
+			}
+		}
+		if i == 4 {
+			var failure object
+			if err := json.Unmarshal([]byte(response.Content[0].Text), &failure); err != nil || failure["client_message_id"] != "resend_mcp" || failure["message"] != "message not found" {
+				t.Fatalf("resend did not reach broker with stable key: %s", response.Content[0].Text)
 			}
 		}
 		if i == 1 {

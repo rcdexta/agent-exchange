@@ -68,6 +68,17 @@ Saved conversations, identities, and mail remain on disk. Launching the same AX 
 
 Queued, accepted by the host, fetched, and acknowledged are separate delivery states. Acknowledgment proves receipt, not completion of the delegated task.
 
+Ask the original sending agent to resend an expired request by its message ID.
+The `resend_message` tool copies the full stored text and original recipient into
+a new delivery attempt, linked by `resend_of`. It preserves the old history and
+uses a fresh twelve-hour expiry, or a requested `ttl_seconds` up to seven days.
+Reuse the returned `client_message_id` and unchanged arguments when retrying that
+attempt; generating another key can create another request. Only expired mail
+can be resent. Accepted, acknowledged, refused, abandoned, queued, and uncertain
+messages are rejected. Normal routing, permission, rate, and capacity limits
+still apply. Resend requires the original message to remain in mailbox history.
+
+
 FIFO orders native handoffs. Once a host accepts a message, later mail can proceed even while the agent works on the first task. A genuinely uncertain handoff blocks later mail and is never automatically repeated. Inspect it before using `resolve` to abandon it. Abandonment releases the queue without claiming delivery or canceling work already accepted by the host.
 
 State lives in a private `.ax` directory under your home directory. `AX_HOME` selects another private directory, useful for isolated tests. Terminal message records are retained for seven days. Unresolved records remain available for inspection.
