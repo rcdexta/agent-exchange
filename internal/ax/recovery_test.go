@@ -114,7 +114,7 @@ func TestCompletedResponseSurvivesConnectionClose(t *testing.T) {
 }
 
 func TestSendRecoversLostResponseWithoutDuplicate(t *testing.T) {
-	for _, method := range []string{"ax.send", "ax.resend"} {
+	for _, method := range []string{"ax.send", "ax.resend", "ax.follow_up"} {
 		t.Run(method, func(t *testing.T) {
 			store, dir := localBroker(t)
 			s, owner, wire := endpoint(t, store, "web", testMesh)
@@ -124,6 +124,11 @@ func TestSendRecoversLostResponseWithoutDuplicate(t *testing.T) {
 			if method == "ax.resend" {
 				original := expiredRequest(t, store, owner, "original", "review")
 				args = object{"message_id": original.ID, "client_message_id": "stable_key"}
+				wantCount++
+			}
+			if method == "ax.follow_up" {
+				original := request(t, store, owner, "ax.send", object{"target": "api", "text": "review", "client_message_id": "original"}).(Message)
+				args = object{"message_id": original.ID, "text": "additional context", "client_message_id": "stable_key"}
 				wantCount++
 			}
 			// Use an already-bound Claude fixture so the test does not depend on a

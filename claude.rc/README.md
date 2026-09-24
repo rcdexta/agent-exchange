@@ -49,6 +49,33 @@ AX authorizes its own messaging tools. Grok's adapter answers ordinary permissio
 
 Unknown permission modes and unapproved bypass modes hold mail. An explicit bypass launch through Codex or Grok also opts that endpoint into AX messaging. `AX_ALLOW_BYPASS=1` provides the same opt-in for an intentionally configured endpoint; it does not change native permissions. Codex applies its explicit bypass choice through its private native session API, including resume.
 
+## Follow up and read a thread
+
+Ask the sending agent to add instructions to its original request. The
+`follow_up` tool takes the outgoing `message_id` and the addendum's `text`;
+it routes to the same recipient without looking up a name again. Each addendum
+has its own delivery status, expiry, and retry key. It does not acknowledge the
+original or claim that work finished. Replies still use `reply`.
+
+New messages include `thread_id`; replies and addenda also retain `in_reply_to`.
+Follow-ups can be queued before the first message arrives. Expired, refused,
+and abandoned requests cannot receive addenda. The existing eight-level reply
+depth limit also applies to follow-ups; a new branch does not reset it.
+
+When context is needed, `get_thread` reads retained messages between the two
+participants. Pass any message ID in that thread, then the returned
+`next_after_message_id` to continue. Each page contains at most twenty messages
+and 64 KiB of text. Incoming text is withheld until offered, and while current
+permission or recipient policy blocks apply. Reading changes no acknowledgment
+or delivery state and does not authorize replaying old tasks.
+
+New messages have indexed thread IDs and paginate beyond 256 messages. Older
+messages use a parent walk with a 256-message history window; `history_limited`
+reports when that window is reached. The database walk has a 100 ms deadline
+to interrupt expensive legacy scans rather than hold the broker lock. Cleanup can remove
+history, and a deleted pagination cursor requires starting a fresh page. These
+limits keep context reads bounded without a mailbox migration or bulk backfill.
+
 ## Inspect and recover
 
 ```sh
