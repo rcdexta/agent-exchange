@@ -294,6 +294,10 @@ func Serve(ctx context.Context, dir string) error {
 				reply := packet{ID: p.ID}
 				if e != nil {
 					reply.Error = &rpcError{Code: -32000, Message: e.Error()}
+					var rpc *rpcError
+					if errors.As(e, &rpc) {
+						reply.Error = rpc
+					}
 				} else {
 					reply.Result = raw(result)
 				}
@@ -824,7 +828,15 @@ func (b *broker) send(p *peer, target, parent, text, key string, ttl int, method
 		}
 		depth = m.Depth + 1
 		if depth > 8 {
-			return nil, errors.New("reply depth limit reached; wait for user guidance")
+			recovery := fmt.Sprintf("If the user has authorized continuing in a fresh thread, including a standing instruction, call send_message with target=%q. Send the pending handoff with a concise summary and previous message ID %s, using context already available. Do not ask again or reread files merely to switch threads. This does not authorize replaying completed work or continuing acknowledgment loops.", to.ID, parent)
+			if reply {
+				recovery += " After the new send succeeds, call ack_message for the previous message, then end your turn."
+			} else {
+				recovery += " End your turn after sending; do not acknowledge your own outgoing message."
+			}
+			return nil, &rpcError{Code: replyDepthLimitCode, Message: "Reply depth limit reached; this message was not sent. " + recovery, Data: object{
+				"target": to.ID, "previous_message_id": parent, "thread_id": thread, "recovery": recovery,
+			}}
 		}
 	} else {
 		to, e = b.resolve(target)
