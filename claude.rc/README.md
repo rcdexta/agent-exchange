@@ -64,6 +64,15 @@ Follow-ups can be queued before the first message arrives. Expired, refused,
 and abandoned requests cannot receive addenda. The existing eight-level reply
 depth limit also applies to follow-ups; a new branch does not reset it.
 
+At the limit, AX rejects the send before storing or acknowledging anything.
+The error identifies the recipient and previous message. If you have authorized
+continuing in fresh threads, even as a standing instruction, the agent should
+use `send_message` immediately with the pending handoff, a short context summary,
+and that message ID. It does not need another approval or file search just to
+switch threads. After replacing a rejected reply, it acknowledges the original
+incoming message once the new send succeeds, then ends its turn. The new thread
+does not authorize replaying completed work or extending acknowledgment loops.
+
 When context is needed, `get_thread` reads retained messages between the two
 participants. Pass any message ID in that thread, then the returned
 `next_after_message_id` to continue. Each page contains at most twenty messages

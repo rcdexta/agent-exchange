@@ -28,7 +28,10 @@ type packet struct {
 type rpcError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
+	Data    object `json:"data,omitempty"`
 }
+
+const replyDepthLimitCode = -32001
 
 func (e *rpcError) Error() string { return e.Message }
 func raw(v any) json.RawMessage   { b, _ := json.Marshal(v); return b }
