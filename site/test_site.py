@@ -25,8 +25,10 @@ class Page(HTMLParser):
             self.h1 += 1
         if tag in ('a', 'link') and 'href' in attrs:
             self.links.append(attrs['href'])
-        if tag in ('script', 'img') and 'src' in attrs:
+        if tag in ('script', 'img', 'video', 'source') and 'src' in attrs:
             self.links.append(attrs['src'])
+        if tag == 'video' and 'poster' in attrs:
+            self.links.append(attrs['poster'])
 
     def handle_data(self, data):
         if self.in_guide:
