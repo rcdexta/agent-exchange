@@ -41,6 +41,7 @@ type sendReceipt struct {
 func agentSnapshot(p *peer) Agent {
 	a := p.Agent
 	a.Online = p.conn != nil && time.Since(p.seen) <= 15*time.Second
+	a.Capabilities = capabilities(p, a.Online)
 	if a.State == "exited" {
 		return a
 	}
@@ -60,6 +61,8 @@ func agentSnapshot(p *peer) Agent {
 		a.State = "inactive"
 	case lifecycled && p.State != "blocked" && !safe(p):
 		a.State = "permission-blocked"
+	case p.DeliveryMode == "manual" && p.State == "ready":
+		a.State = "user-turn"
 	}
 	return a
 }
@@ -108,6 +111,8 @@ func queueReason(to, from *peer) string {
 		return "Sender permission state is unavailable; delivery remains blocked."
 	case !safe(from):
 		return permissionBlockReason("Sender", from)
+	case to.DeliveryMode == "manual":
+		return "Recipient has no automatic wake; it can call check_inbox on its next user turn."
 	default:
 		return "Awaiting the next permitted FIFO handoff; readiness is only a snapshot."
 	}
