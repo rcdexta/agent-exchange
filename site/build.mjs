@@ -49,6 +49,10 @@ md.renderer.rules.table_close = () => '</table></div>\n';
 await rm(output, { recursive: true, force: true });
 await mkdir(new URL('docs/', output), { recursive: true });
 await mkdir(new URL('fonts/', output));
+await mkdir(new URL('media/', output));
+for (const file of ['ax-demo.mp4', 'ax-demo-poster.jpg']) {
+  await copyFile(new URL('media/' + file, import.meta.url), new URL('media/' + file, output));
+}
 for (const file of ['JetBrainsMono-Regular.woff2', 'JetBrainsMono-Bold.woff2', 'OFL.txt']) {
   await copyFile(new URL('fonts/' + file, import.meta.url), new URL('fonts/' + file, output));
 }
